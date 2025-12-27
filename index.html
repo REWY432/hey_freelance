@@ -26,6 +26,7 @@
       }
     </style>
 
+<link rel="stylesheet" href="/index.css">
   <script type="importmap">
 {
   "imports": {
@@ -43,8 +44,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- Point to the local entry file for Vite to bundle. 
-         IMPORTANT: Use /index.tsx so Vite recognizes it as the module graph entry point. 
-         Vite will replace this with the bundled JS file path in production. -->
-  </body>
+    <!-- Use relative path ./index.tsx so Vite resolves it correctly relative to index.html -->
+</body>
 </html>
