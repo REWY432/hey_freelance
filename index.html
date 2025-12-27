@@ -44,6 +44,7 @@
   <body>
     <div id="root"></div>
     <!-- Point to the local entry file for Vite to bundle. 
-         IMPORTANT: Use ./index.tsx (relative path) to ensure correct resolution on GitHub Pages subpaths. -->
+         IMPORTANT: Use /index.tsx so Vite recognizes it as the module graph entry point. 
+         Vite will replace this with the bundled JS file path in production. -->
   </body>
 </html>
