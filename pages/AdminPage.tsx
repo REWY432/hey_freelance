@@ -234,8 +234,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
       const success = await api.approveJobScheduled(schedulingJobId, scheduledAt);
       if (success) {
         triggerHaptic('success');
-        onJobStatusChange(schedulingJobId, JobStatus.OPEN);
-        // Перезагружаем scheduled jobs
+        // Убираем из списка (заказ scheduled, не должен показываться в ленте)
+        onJobDeleted(schedulingJobId);
+        // Перезагружаем scheduled jobs для дашборда
         const scheduled = await api.getScheduledJobs?.() || [];
         setScheduledJobs(scheduled);
       }
