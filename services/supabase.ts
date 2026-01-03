@@ -122,7 +122,14 @@ export const api = {
         return MOCK_JOBS;
       }
 
-      return (data || []).map((record: any) => ({
+      // Фильтруем scheduled заказы (не показываем те, что запланированы на будущее)
+      const now = new Date().toISOString();
+      const filtered = (data || []).filter((record: any) => {
+        if (!record.scheduled_at) return true; // Нет scheduled - показываем
+        return record.scheduled_at <= now; // Показываем только если время пришло
+      });
+
+      return filtered.map((record: any) => ({
         id: record.id.toString(),
         authorId: record.author_id,
         authorName: [record.users?.first_name, record.users?.last_name].filter(Boolean).join(' ') || 'Unknown',
@@ -136,7 +143,8 @@ export const api = {
         isPinned: record.is_pinned || false,
         isHighlighted: record.is_highlighted || false,
         isUrgent: record.is_urgent || false,
-        proposalsCount: record.proposals?.[0]?.count || 0
+        proposalsCount: record.proposals?.[0]?.count || 0,
+        scheduledAt: record.scheduled_at
       }));
     } catch (e) {
       console.error('Supabase: Exception fetching jobs', e);
@@ -161,7 +169,8 @@ export const api = {
             is_active: true,
             is_pinned: job.isPinned || false,
             is_highlighted: job.isHighlighted || false,
-            is_urgent: job.isUrgent || false
+            is_urgent: job.isUrgent || false,
+            scheduled_at: job.scheduledAt || null
         })
         .select('*, users!author_id(first_name, last_name, username)')
         .single();
@@ -1161,6 +1170,47 @@ export const api = {
     } catch (e) {
       console.error('Exception fetching traffic sources:', e);
       return { total: 0, direct: 0, referral: 0, fromJob: 0, fromService: 0, topReferrers: [] };
+    }
+  },
+
+  /**
+   * Получить запланированные заказы (для админки)
+   */
+  async getScheduledJobs(): Promise<Job[]> {
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('jobs')
+        .select('*, users!author_id(first_name, last_name, username)')
+        .not('scheduled_at', 'is', null)
+        .gt('scheduled_at', now)
+        .order('scheduled_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching scheduled jobs:', error);
+        return [];
+      }
+
+      return (data || []).map((record: any) => ({
+        id: record.id.toString(),
+        authorId: record.author_id,
+        authorName: [record.users?.first_name, record.users?.last_name].filter(Boolean).join(' ') || 'Unknown',
+        authorUsername: record.users?.username,
+        title: record.title,
+        description: record.description,
+        budget: record.budget,
+        category: record.category || JobCategory.OTHER,
+        status: (record.status?.toUpperCase() as JobStatus) || JobStatus.PENDING,
+        createdAt: record.created_at,
+        isPinned: record.is_pinned || false,
+        isHighlighted: record.is_highlighted || false,
+        isUrgent: record.is_urgent || false,
+        proposalsCount: 0,
+        scheduledAt: record.scheduled_at
+      }));
+    } catch (e) {
+      console.error('Exception fetching scheduled jobs:', e);
+      return [];
     }
   }
 };

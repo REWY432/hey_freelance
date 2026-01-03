@@ -110,6 +110,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
     fromService: number;
     topReferrers: { referrerId: number; count: number; username?: string }[];
   } | null>(null);
+  const [scheduledJobs, setScheduledJobs] = useState<Job[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -134,7 +135,8 @@ const AdminPage: React.FC<AdminPageProps> = ({
         freelancers,
         clients,
         activity,
-        traffic
+        traffic,
+        scheduled
       ] = await Promise.all([
         api.getPlatformStats?.() || null,
         api.getDailyStats?.(14) || [],
@@ -142,13 +144,15 @@ const AdminPage: React.FC<AdminPageProps> = ({
         api.getTopFreelancers?.(5) || [],
         api.getTopClients?.(5) || [],
         api.getRecentActivity?.(10) || [],
-        api.getTrafficSources?.() || null
+        api.getTrafficSources?.() || null,
+        api.getScheduledJobs?.() || []
       ]);
 
       setStats(platformStats);
       setDailyStats(daily || []);
       setCategoryStats(categories || []);
       setTrafficSources(traffic);
+      setScheduledJobs(scheduled || []);
       setTopFreelancers(freelancers || []);
       setTopClients(clients || []);
       setRecentActivity(activity || []);
@@ -437,6 +441,42 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Scheduled Jobs */}
+        {scheduledJobs.length > 0 && (
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <div className="flex items-center gap-2 mb-4">
+              <Clock size={18} className="text-cyan-400" />
+              <span className="text-sm font-medium text-white">Запланированные публикации</span>
+              <span className="text-xs text-slate-500 ml-auto">{scheduledJobs.length} заказов</span>
+            </div>
+            
+            <div className="space-y-2">
+              {scheduledJobs.slice(0, 5).map((job) => (
+                <div key={job.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-white truncate">{job.title}</div>
+                    <div className="text-xs text-slate-400">@{job.authorUsername || job.authorName}</div>
+                  </div>
+                  <div className="text-right ml-3">
+                    <div className="text-xs font-medium text-cyan-400">
+                      {job.scheduledAt && new Date(job.scheduledAt).toLocaleDateString('ru-RU', { 
+                        day: 'numeric', 
+                        month: 'short' 
+                      })}
+                    </div>
+                    <div className="text-[10px] text-slate-500">
+                      {job.scheduledAt && new Date(job.scheduledAt).toLocaleTimeString('ru-RU', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

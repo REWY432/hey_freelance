@@ -45,6 +45,7 @@ export interface Job {
   isHighlighted?: boolean;
   isUrgent?: boolean;
   proposalsCount?: number;
+  scheduledAt?: string;  // Запланированная публикация
 }
 
 export interface FreelancerProfile {
