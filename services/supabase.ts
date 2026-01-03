@@ -246,6 +246,30 @@ export const api = {
   },
 
   /**
+   * Одобрить заказ с отложенной публикацией (для админа)
+   */
+  async approveJobScheduled(jobId: string, scheduledAt: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('jobs')
+        .update({ 
+          status: JobStatus.OPEN,
+          scheduled_at: scheduledAt 
+        })
+        .eq('id', jobId);
+      
+      if (error) {
+        console.error('Error scheduling job:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception scheduling job:', e);
+      return false;
+    }
+  },
+
+  /**
    * Delete a job
    */
   async deleteJob(jobId: string): Promise<boolean> {

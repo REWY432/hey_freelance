@@ -117,6 +117,11 @@ const AdminPage: React.FC<AdminPageProps> = ({
   // Action States
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  
+  // Scheduled Approval Modal
+  const [schedulingJobId, setSchedulingJobId] = useState<string | null>(null);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
 
   // Load Analytics
   useEffect(() => {
@@ -204,6 +209,41 @@ const AdminPage: React.FC<AdminPageProps> = ({
       console.error(e);
     } finally {
       setApprovingId(null);
+    }
+  };
+
+  // Открыть модалку для отложенной публикации
+  const openScheduleModal = (jobId: string) => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setScheduleDate(tomorrow.toISOString().split('T')[0]);
+    setScheduleTime('10:00');
+    setSchedulingJobId(jobId);
+    triggerHaptic('light');
+  };
+
+  // Одобрить с отложенной публикацией
+  const handleScheduledApprove = async () => {
+    if (!schedulingJobId || !scheduleDate || !scheduleTime) return;
+    
+    setApprovingId(schedulingJobId);
+    triggerHaptic('medium');
+    
+    try {
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      const success = await api.approveJobScheduled(schedulingJobId, scheduledAt);
+      if (success) {
+        triggerHaptic('success');
+        onJobStatusChange(schedulingJobId, JobStatus.OPEN);
+        // Перезагружаем scheduled jobs
+        const scheduled = await api.getScheduledJobs?.() || [];
+        setScheduledJobs(scheduled);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setApprovingId(null);
+      setSchedulingJobId(null);
     }
   };
 
@@ -713,14 +753,24 @@ const AdminPage: React.FC<AdminPageProps> = ({
 
             <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2">
               {job.status === JobStatus.PENDING && (
-                <button
-                  onClick={() => handleApproveJob(job.id)}
-                  disabled={!!approvingId}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
-                >
-                  <Check size={14} />
-                  {approvingId === job.id ? '...' : 'Одобрить'}
-                </button>
+                <>
+                  <button
+                    onClick={() => openScheduleModal(job.id)}
+                    disabled={!!approvingId}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 transition-all"
+                  >
+                    <Clock size={14} />
+                    Позже
+                  </button>
+                  <button
+                    onClick={() => handleApproveJob(job.id)}
+                    disabled={!!approvingId}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
+                  >
+                    <Check size={14} />
+                    {approvingId === job.id ? '...' : 'Сейчас'}
+                  </button>
+                </>
               )}
               <button
                 onClick={() => handleDeleteJob(job.id)}
@@ -925,6 +975,74 @@ const AdminPage: React.FC<AdminPageProps> = ({
       {activeTab === 'dashboard' && renderDashboard()}
       {activeTab === 'jobs' && renderJobsModeration()}
       {activeTab === 'services' && renderServicesModeration()}
+
+      {/* Schedule Modal */}
+      {schedulingJobId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setSchedulingJobId(null)}
+          />
+          <div className="relative bg-slate-800 rounded-2xl p-6 w-full max-w-sm border border-slate-700 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+              <Clock size={20} className="text-cyan-400" />
+              Отложенная публикация
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Дата публикации</label>
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  min={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setScheduleDate(e.target.value)}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs text-slate-400 mb-2">Время</label>
+                <input
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => setScheduleTime(e.target.value)}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+
+              {scheduleDate && scheduleTime && (
+                <div className="p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                  <p className="text-xs text-cyan-400">
+                    Заказ будет опубликован {new Date(`${scheduleDate}T${scheduleTime}`).toLocaleString('ru-RU', {
+                      day: 'numeric',
+                      month: 'long',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setSchedulingJobId(null)}
+                className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-all"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleScheduledApprove}
+                disabled={!scheduleDate || !scheduleTime || !!approvingId}
+                className="flex-1 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {approvingId ? 'Сохранение...' : 'Запланировать'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,7 +6,7 @@ import { CATEGORY_LABELS, PROMOTION_PRICES, PAYMENT_DETAILS, ADMIN_USERNAME } fr
 import { 
   AlertCircle, Star, Pin, Zap, Flame, Check, Copy, CreditCard, Send, 
   ChevronRight, ChevronLeft, Sparkles, FileText, Wallet, Rocket,
-  CheckCircle2, Circle, Loader2, Calendar
+  CheckCircle2, Circle, Loader2
 } from 'lucide-react';
 
 interface CreateJobWizardProps {
@@ -46,11 +46,6 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
     urgent: false
   });
   const [bonusApplied, setBonusApplied] = useState(false);
-  
-  // Scheduled posting
-  const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduledDate, setScheduledDate] = useState('');
-  const [scheduledTime, setScheduledTime] = useState('');
 
   // Validation Errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -230,12 +225,6 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
         formattedBudget = Number(formattedBudget.replace(/\s/g, '')).toLocaleString('ru-RU') + ' ₽';
       }
 
-      // Формируем scheduledAt если включена отложенная публикация
-      let scheduledAt: string | undefined;
-      if (isScheduled && scheduledDate && scheduledTime) {
-        scheduledAt = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
-      }
-
       const newJob = await api.createJob({
         authorId: user.id,
         title: formData.title,
@@ -244,8 +233,7 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
         category: formData.category as JobCategory,
         isPinned: promotions.pin,
         isHighlighted: promotions.highlight,
-        isUrgent: promotions.urgent,
-        scheduledAt
+        isUrgent: promotions.urgent
       });
 
       // Clear draft
@@ -766,80 +754,6 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
                   <div className="flex items-center gap-2 text-xs text-emerald-400 mt-3">
                     <Sparkles size={14} />
                     Реф-бонус покроет подсветку заказа при публикации.
-                  </div>
-                )}
-              </div>
-
-              {/* Scheduled Posting */}
-              <div className="pt-4 border-t border-slate-800">
-                <button
-                  onClick={() => {
-                    triggerHaptic('selection');
-                    setIsScheduled(!isScheduled);
-                    if (!isScheduled) {
-                      // Установить дефолтное время - завтра в 10:00
-                      const tomorrow = new Date();
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-                      setScheduledDate(tomorrow.toISOString().split('T')[0]);
-                      setScheduledTime('10:00');
-                    }
-                  }}
-                  className={`w-full p-4 rounded-xl border transition-all flex items-center justify-between ${
-                    isScheduled
-                      ? 'bg-cyan-500/10 border-cyan-500/50 shadow-lg shadow-cyan-500/10'
-                      : 'bg-slate-800 border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      isScheduled ? 'bg-cyan-500 text-white' : 'bg-slate-700 text-slate-400'
-                    }`}>
-                      <Calendar size={18} />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-white text-sm">Отложенная публикация</div>
-                      <div className="text-xs text-slate-400">Опубликовать позже</div>
-                    </div>
-                  </div>
-                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                    isScheduled ? 'bg-cyan-500 border-cyan-500' : 'border-slate-600'
-                  }`}>
-                    {isScheduled && <Check size={14} className="text-white" />}
-                  </div>
-                </button>
-
-                {isScheduled && (
-                  <div className="mt-3 p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 space-y-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs text-slate-400 mb-1">Дата</label>
-                        <input
-                          type="date"
-                          value={scheduledDate}
-                          min={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => setScheduledDate(e.target.value)}
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-400 mb-1">Время</label>
-                        <input
-                          type="time"
-                          value={scheduledTime}
-                          onChange={(e) => setScheduledTime(e.target.value)}
-                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                    <div className="text-xs text-cyan-400 flex items-center gap-1">
-                      <Calendar size={12} />
-                      Заказ появится в ленте {scheduledDate && new Date(scheduledDate + 'T' + (scheduledTime || '00:00')).toLocaleString('ru-RU', { 
-                        day: 'numeric', 
-                        month: 'long', 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
-                    </div>
                   </div>
                 )}
               </div>
