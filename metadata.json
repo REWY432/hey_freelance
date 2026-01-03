@@ -1,0 +1,5 @@
+{
+  "name": "TeleLance MVP",
+  "description": "MVP Telegram Mini App для поиска фрилансеров. Включает демо фронтенда и документацию архитектуры бэкенда.",
+  "requestFramePermissions": []
+}
