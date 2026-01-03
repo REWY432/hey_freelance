@@ -1135,7 +1135,7 @@ export const api = {
         }
       });
 
-      const topReferrers = Object.entries(referrerCounts)
+      const topReferrers: { referrerId: number; count: number; username?: string }[] = Object.entries(referrerCounts)
         .map(([id, count]) => ({ referrerId: Number(id), count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
