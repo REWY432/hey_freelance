@@ -247,13 +247,14 @@ export const api = {
 
   /**
    * Одобрить заказ с отложенной публикацией (для админа)
+   * Оставляем статус PENDING, но ставим scheduled_at
+   * Бот/cron при наступлении времени изменит статус на OPEN и опубликует
    */
   async approveJobScheduled(jobId: string, scheduledAt: string): Promise<boolean> {
     try {
       const { error } = await supabase
         .from('jobs')
         .update({ 
-          status: JobStatus.OPEN,
           scheduled_at: scheduledAt 
         })
         .eq('id', jobId);
