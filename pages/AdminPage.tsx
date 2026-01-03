@@ -102,6 +102,14 @@ const AdminPage: React.FC<AdminPageProps> = ({
   const [topFreelancers, setTopFreelancers] = useState<any[]>([]);
   const [topClients, setTopClients] = useState<any[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [trafficSources, setTrafficSources] = useState<{
+    total: number;
+    direct: number;
+    referral: number;
+    fromJob: number;
+    fromService: number;
+    topReferrers: { referrerId: number; count: number; username?: string }[];
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -125,19 +133,22 @@ const AdminPage: React.FC<AdminPageProps> = ({
         categories,
         freelancers,
         clients,
-        activity
+        activity,
+        traffic
       ] = await Promise.all([
         api.getPlatformStats?.() || null,
         api.getDailyStats?.(14) || [],
         api.getCategoryStats?.() || [],
         api.getTopFreelancers?.(5) || [],
         api.getTopClients?.(5) || [],
-        api.getRecentActivity?.(10) || []
+        api.getRecentActivity?.(10) || [],
+        api.getTrafficSources?.() || null
       ]);
 
       setStats(platformStats);
       setDailyStats(daily || []);
       setCategoryStats(categories || []);
+      setTrafficSources(traffic);
       setTopFreelancers(freelancers || []);
       setTopClients(clients || []);
       setRecentActivity(activity || []);
@@ -381,6 +392,53 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Traffic Sources */}
+        {trafficSources && trafficSources.total > 0 && (
+          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp size={18} className="text-cyan-400" />
+              <span className="text-sm font-medium text-white">Источники трафика</span>
+              <span className="text-xs text-slate-500 ml-auto">{trafficSources.total} переходов</span>
+            </div>
+            
+            {/* Traffic breakdown */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="bg-slate-700/50 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-blue-400">{trafficSources.referral}</div>
+                <div className="text-[10px] text-slate-400">Рефералы</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-emerald-400">{trafficSources.fromJob}</div>
+                <div className="text-[10px] text-slate-400">С заказов</div>
+              </div>
+              <div className="bg-slate-700/50 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-purple-400">{trafficSources.fromService}</div>
+                <div className="text-[10px] text-slate-400">С услуг</div>
+              </div>
+            </div>
+
+            {/* Top Referrers */}
+            {trafficSources.topReferrers.length > 0 && (
+              <div>
+                <div className="text-xs text-slate-400 mb-2">Топ рефереров</div>
+                <div className="space-y-1">
+                  {trafficSources.topReferrers.slice(0, 5).map((ref, i) => (
+                    <div key={ref.referrerId} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                          {i + 1}
+                        </span>
+                        <span className="text-slate-300">@{ref.username || ref.referrerId}</span>
+                      </div>
+                      <span className="text-cyan-400 font-medium">{ref.count} чел.</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Activity Chart */}
         {dailyStats.length > 0 && (

@@ -1096,5 +1096,71 @@ export const api = {
       console.error('Exception fetching referral stats:', e);
       return loadLocalReferralStats(referrerId);
     }
+  },
+
+  /**
+   * Получить статистику по источникам трафика (для админки)
+   */
+  async getTrafficSources(): Promise<{
+    total: number;
+    direct: number;
+    referral: number;
+    fromJob: number;
+    fromService: number;
+    topReferrers: { referrerId: number; count: number; username?: string }[];
+  }> {
+    try {
+      // Получаем все записи из referrals
+      const { data: referrals, error } = await supabase
+        .from('referrals')
+        .select('referrer_id, referred_id, job_id, service_id, created_at');
+
+      if (error) {
+        console.error('Error fetching traffic sources:', error);
+        return { total: 0, direct: 0, referral: 0, fromJob: 0, fromService: 0, topReferrers: [] };
+      }
+
+      const records = referrals || [];
+      const total = records.length;
+      const fromJob = records.filter(r => r.job_id != null).length;
+      const fromService = records.filter(r => r.service_id != null).length;
+      const referral = records.filter(r => r.referrer_id != null && !r.job_id && !r.service_id).length;
+      const direct = 0; // Прямые переходы не логируются в referrals
+
+      // Топ рефереров
+      const referrerCounts: Record<number, number> = {};
+      records.forEach(r => {
+        if (r.referrer_id) {
+          referrerCounts[r.referrer_id] = (referrerCounts[r.referrer_id] || 0) + 1;
+        }
+      });
+
+      const topReferrers = Object.entries(referrerCounts)
+        .map(([id, count]) => ({ referrerId: Number(id), count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // Получаем usernames для топ рефереров
+      if (topReferrers.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('tg_id, username, first_name')
+          .in('tg_id', topReferrers.map(r => r.referrerId));
+
+        if (users) {
+          topReferrers.forEach(r => {
+            const user = users.find(u => u.tg_id === r.referrerId);
+            if (user) {
+              r.username = user.username || user.first_name || `ID:${r.referrerId}`;
+            }
+          });
+        }
+      }
+
+      return { total, direct, referral, fromJob, fromService, topReferrers };
+    } catch (e) {
+      console.error('Exception fetching traffic sources:', e);
+      return { total: 0, direct: 0, referral: 0, fromJob: 0, fromService: 0, topReferrers: [] };
+    }
   }
 };
