@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getTelegramUser, triggerHaptic, setCloudData, getCloudData, openTelegramChat } from '../services/telegram';
 import { api } from '../services/supabase';
 import { Job, JobCategory } from '../types';
-import { CATEGORY_LABELS, PROMOTION_PRICES, PAYMENT_DETAILS, ADMIN_USERNAME } from '../constants';
+import { CATEGORY_LABELS, PROMOTION_PRICES, PAYMENT_DETAILS, ADMIN_USERNAME, DONATE_STREAM } from '../constants';
 import { 
   AlertCircle, Star, Pin, Zap, Flame, Check, Copy, CreditCard, Send, 
   ChevronRight, ChevronLeft, Sparkles, FileText, Wallet, Rocket,
@@ -287,56 +287,180 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
 
   // --- RENDER PAYMENT MODAL ---
   if (showPaymentModal && createdJobData) {
+    // Формируем флаги промо для message
+    const promoFlags = [
+      promotions.pin && 'PIN',
+      promotions.highlight && 'HL',
+      promotions.urgent && 'URG'
+    ].filter(Boolean).join(',');
+    
+    const donateStreamUrl = DONATE_STREAM.buildPaymentUrl(
+      createdJobData.price,
+      createdJobData.id,
+      promoFlags
+    );
+
+    // Открыть ссылку и закрыть модал
+    const handlePayViaStream = () => {
+      triggerHaptic('medium');
+      window.open(donateStreamUrl, '_blank');
+      // Закрываем и возвращаем на главную — заказ в статусе PENDING
+      onJobCreated({ ...createdJobData, status: 'PENDING' } as any);
+    };
+
+    // Если donate.stream отключен — fallback на старую оплату картой
+    if (!DONATE_STREAM.enabled) {
+      return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md">
+          <div className="bg-slate-800 w-full max-w-sm rounded-3xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-6 text-center">
+              <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 bg-emerald-500/30 rounded-full flex items-center justify-center animate-pulse">
+                  <CreditCard className="text-emerald-400" size={28} />
+                </div>
+              </div>
+              
+              <h2 className="text-2xl font-bold text-white mb-2">Оплата</h2>
+              <p className="text-slate-400 text-sm mb-6">
+                Заказ <span className="text-white font-mono">#{createdJobData.id}</span> создан
+              </p>
+
+              <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-2xl p-5 mb-6 border border-emerald-500/20">
+                <div className="text-emerald-400/70 text-xs uppercase tracking-widest mb-1">К оплате</div>
+                <div className="text-4xl font-black text-white">{createdJobData.price} ₽</div>
+              </div>
+
+              <div className="space-y-3 text-left">
+                <div>
+                  <label className="text-xs text-slate-500 ml-1 mb-1 block">
+                    Карта ({PAYMENT_DETAILS.bank})
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="flex-1 bg-slate-900 p-3.5 rounded-xl text-white font-mono text-sm border border-slate-700 tracking-wider">
+                      {PAYMENT_DETAILS.card}
+                    </div>
+                    <button 
+                      onClick={() => copyToClipboard(PAYMENT_DETAILS.card)}
+                      className="px-4 bg-slate-700 rounded-xl text-white hover:bg-slate-600 active:scale-95 transition-all"
+                    >
+                      <Copy size={18} />
+                    </button>
+                  </div>
+                </div>
+                
+                <p className="text-xs text-slate-500 text-center pt-2">
+                  После перевода отправьте чек администратору
+                </p>
+              </div>
+            </div>
+
+            <button 
+              onClick={handleContactAdmin}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 flex items-center justify-center gap-2 transition-colors active:bg-emerald-700"
+            >
+              <Send size={18} />
+              ОТПРАВИТЬ ЧЕК
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // ✅ DONATE.STREAM — основной способ
     return (
       <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md">
         <div className="bg-slate-800 w-full max-w-sm rounded-3xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
           <div className="p-6 text-center">
-            <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <div className="w-14 h-14 bg-emerald-500/30 rounded-full flex items-center justify-center animate-pulse">
-                <CreditCard className="text-emerald-400" size={28} />
+            {/* Иконка */}
+            <div className="w-20 h-20 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-full flex items-center justify-center">
+                <Wallet className="text-purple-400" size={28} />
               </div>
             </div>
             
-            <h2 className="text-2xl font-bold text-white mb-2">Оплата</h2>
+            <h2 className="text-2xl font-bold text-white mb-1">Оплата</h2>
+            <p className="text-slate-500 text-xs mb-4">через donate.stream</p>
+            
             <p className="text-slate-400 text-sm mb-6">
-              Заказ <span className="text-white font-mono">#{createdJobData.id}</span> создан
+              Заказ <span className="text-white font-mono bg-slate-700/50 px-2 py-0.5 rounded">#{createdJobData.id}</span>
             </p>
 
-            <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 rounded-2xl p-5 mb-6 border border-emerald-500/20">
-              <div className="text-emerald-400/70 text-xs uppercase tracking-widest mb-1">К оплате</div>
+            {/* Сумма */}
+            <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/10 rounded-2xl p-5 mb-5 border border-purple-500/20">
+              <div className="text-purple-400/70 text-xs uppercase tracking-widest mb-1">К оплате</div>
               <div className="text-4xl font-black text-white">{createdJobData.price} ₽</div>
             </div>
 
-            <div className="space-y-3 text-left">
-              <div>
-                <label className="text-xs text-slate-500 ml-1 mb-1 block">
-                  Карта ({PAYMENT_DETAILS.bank})
-                </label>
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-slate-900 p-3.5 rounded-xl text-white font-mono text-sm border border-slate-700 tracking-wider">
-                    {PAYMENT_DETAILS.card}
-                  </div>
-                  <button 
-                    onClick={() => copyToClipboard(PAYMENT_DETAILS.card)}
-                    className="px-4 bg-slate-700 rounded-xl text-white hover:bg-slate-600 active:scale-95 transition-all"
-                  >
-                    <Copy size={18} />
-                  </button>
+            {/* Способы оплаты */}
+            <div className="flex justify-center items-center gap-4 mb-5 text-slate-500">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center">
+                  <CreditCard size={16} />
                 </div>
+                <span className="text-[10px]">Карта</span>
               </div>
-              
-              <p className="text-xs text-slate-500 text-center pt-2">
-                После перевода отправьте чек администратору
-              </p>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center text-xs font-bold">
+                  Ю
+                </div>
+                <span className="text-[10px]">ЮMoney</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center text-xs font-bold">
+                  Q
+                </div>
+                <span className="text-[10px]">QIWI</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-8 h-8 bg-slate-700/50 rounded-lg flex items-center justify-center text-xs font-bold">
+                  P
+                </div>
+                <span className="text-[10px]">PayPal</span>
+              </div>
             </div>
+
+            {/* Промо-флаги что оплачивается */}
+            {promoFlags && (
+              <div className="flex justify-center gap-2 mb-4 flex-wrap">
+                {promotions.pin && (
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full flex items-center gap-1">
+                    <Pin size={12} /> Закреп
+                  </span>
+                )}
+                {promotions.highlight && (
+                  <span className="px-2 py-1 bg-yellow-500/20 text-yellow-400 text-xs rounded-full flex items-center gap-1">
+                    <Zap size={12} /> Выделение
+                  </span>
+                )}
+                {promotions.urgent && (
+                  <span className="px-2 py-1 bg-rose-500/20 text-rose-400 text-xs rounded-full flex items-center gap-1">
+                    <Flame size={12} /> Срочно
+                  </span>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500 px-4">
+              💡 ID заказа будет указан в сообщении автоматически — не меняйте его
+            </p>
           </div>
 
+          {/* Кнопка оплаты */}
+          <button 
+            onClick={handlePayViaStream}
+            className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold py-4 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          >
+            <Rocket size={18} />
+            ПЕРЕЙТИ К ОПЛАТЕ
+          </button>
+
+          {/* Альтернатива — оплата напрямую */}
           <button 
             onClick={handleContactAdmin}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 flex items-center justify-center gap-2 transition-colors active:bg-emerald-700"
+            className="w-full bg-slate-700/50 hover:bg-slate-700 text-slate-400 text-sm py-3 flex items-center justify-center gap-2 transition-colors"
           >
-            <Send size={18} />
-            ОТПРАВИТЬ ЧЕК
+            <Send size={14} />
+            Или оплатить напрямую админу
           </button>
         </div>
       </div>

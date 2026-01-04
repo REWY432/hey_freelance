@@ -17,7 +17,7 @@ export const ADMIN_IDS = [
 // Вписывайте БЕЗ собачки (@).
 export const ADMIN_USERNAME = "yorzhik"; 
 
-// 3. РЕКВИЗИТЫ КАРТЫ (Отображаются в модальном окне оплаты)
+// 3. РЕКВИЗИТЫ КАРТЫ (Fallback — если donate.stream недоступен)
 export const PAYMENT_DETAILS = {
     card: "2204 3107 7135 1460",
     bank: "Я-Пэй (Yandex)",
@@ -25,14 +25,27 @@ export const PAYMENT_DETAILS = {
     phone: "+7 (999) 000-00-00"
 };
 
+// 4. DONATE.STREAM — ОСНОВНОЙ СПОСОБ ОПЛАТЫ
+// ⚠️ ЗАМЕНИТЕ 'yourpage' НА ВАШУ СТРАНИЦУ ИЗ donate.stream
+export const DONATE_STREAM = {
+    enabled: true, // false = откат на старую оплату картой
+    pageSlug: "hey_freelancer", // ваш слаг на donate.stream (без https://)
+    
+    // Генерация ссылки с предзаполненными данными
+    buildPaymentUrl: (amount: number, jobId: string, promoFlags: string) => {
+        const message = encodeURIComponent(`JOB#${jobId}|${promoFlags}`);
+        return `https://donate.stream/${DONATE_STREAM.pageSlug}?sum=${amount}&message=${message}`;
+    }
+};
+
 // ==========================================
 // ЦЕНЫ И КОНСТАНТЫ
 // ==========================================
 
 export const PROMOTION_PRICES = {
-    PIN: 100,       // Цена за закреп (RUB)
-    HIGHLIGHT: 50, // Цена за выделение (RUB)
-    URGENT: 25     // Цена за "Срочно" (RUB)
+    PIN: 50,        // Цена за закреп (RUB)
+    HIGHLIGHT: 50,  // Цена за выделение (RUB)
+    URGENT: 50      // Цена за "Срочно" (RUB)
 };
 
 // Версия онбординга - при изменении показать онбординг всем пользователям заново
