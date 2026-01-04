@@ -294,11 +294,16 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
       promotions.urgent && 'URG'
     ].filter(Boolean).join(',');
     
-    const donateStreamUrl = DONATE_STREAM.buildPaymentUrl(
-      createdJobData.price,
-      createdJobData.id,
-      promoFlags
-    );
+    const donateStreamUrl = DONATE_STREAM.buildPaymentUrl(createdJobData.price);
+    const messageForCopy = DONATE_STREAM.buildMessage(createdJobData.id, promoFlags);
+    const [copied, setCopied] = useState(false);
+    
+    const handleCopyMessage = () => {
+      navigator.clipboard.writeText(messageForCopy);
+      setCopied(true);
+      triggerHaptic('success');
+      setTimeout(() => setCopied(false), 2000);
+    };
 
     // Открыть ссылку и закрыть модал
     const handlePayViaStream = () => {
@@ -368,8 +373,8 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
 
     // ✅ DONATE.STREAM — основной способ
     return (
-      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-md">
-        <div className="bg-slate-800 w-full max-w-sm rounded-3xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pb-24 bg-slate-900/95 backdrop-blur-md overflow-y-auto">
+        <div className="bg-slate-800 w-full max-w-sm rounded-3xl border border-slate-700 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 my-auto">
           <div className="p-6 text-center">
             {/* Иконка */}
             <div className="w-20 h-20 bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -440,8 +445,30 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
               </div>
             )}
 
-            <p className="text-xs text-slate-500 px-4">
-              💡 ID заказа будет указан в сообщении автоматически — не меняйте его
+            {/* Блок для копирования ID заказа */}
+            <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-700 mb-4">
+              <label className="text-[10px] text-slate-500 uppercase tracking-wider block mb-2">
+                📋 Скопируйте и вставьте в поле «Сообщение»
+              </label>
+              <div className="flex gap-2">
+                <div className="flex-1 bg-slate-800 p-2.5 rounded-lg text-white font-mono text-sm border border-slate-600 truncate">
+                  {messageForCopy}
+                </div>
+                <button 
+                  onClick={handleCopyMessage}
+                  className={`px-3 rounded-lg transition-all active:scale-95 ${
+                    copied 
+                      ? 'bg-emerald-500 text-white' 
+                      : 'bg-slate-700 text-white hover:bg-slate-600'
+                  }`}
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-500 px-2">
+              ⚠️ Без этого кода мы не сможем активировать ваш заказ!
             </p>
           </div>
 

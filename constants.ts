@@ -26,15 +26,18 @@ export const PAYMENT_DETAILS = {
 };
 
 // 4. DONATE.STREAM — ОСНОВНОЙ СПОСОБ ОПЛАТЫ
-// ⚠️ ЗАМЕНИТЕ 'yourpage' НА ВАШУ СТРАНИЦУ ИЗ donate.stream
 export const DONATE_STREAM = {
     enabled: true, // false = откат на старую оплату картой
-    pageSlug: "hey_freelancer", // ваш слаг на donate.stream (без https://)
+    pageSlug: "hey_freelancer", // ваш слаг на donate.stream
     
-    // Генерация ссылки с предзаполненными данными
-    buildPaymentUrl: (amount: number, jobId: string, promoFlags: string) => {
-        const message = encodeURIComponent(`JOB#${jobId}|${promoFlags}`);
-        return `https://donate.stream/${DONATE_STREAM.pageSlug}?sum=${amount}&message=${message}`;
+    // Генерация ссылки (donate.stream НЕ поддерживает ?message= параметр)
+    buildPaymentUrl: (amount: number) => {
+        return `https://donate.stream/hey_freelancer?sum=${amount}`;
+    },
+    
+    // Генерация текста для копирования в поле "Сообщение"
+    buildMessage: (jobId: string, promoFlags: string) => {
+        return `JOB#${jobId}|${promoFlags}`;
     }
 };
 

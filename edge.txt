@@ -1,0 +1,577 @@
+// supabase/functions/channel-autoposter/index.ts
+// 
+// Автопостинг заказов в Telegram-канал
+// - Одиночные посты при одобрении заказа
+// - Компактный дайджест по расписанию
+// - Выборочный дайджест по ID
+// - Отложенная публикация (scheduled posts)
+//
+// Переменные окружения (Supabase Dashboard → Edge Functions → Secrets):
+// - BOT_TOKEN: токен бота от @BotFather
+// - CHANNEL_ID: ID или username канала (например: @hey_freelancer)
+// - WEBAPP_URL: URL вашего Mini App
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+
+// ============================================
+// КОНФИГУРАЦИЯ
+// ============================================
+
+const BOT_TOKEN = Deno.env.get('BOT_TOKEN')!
+const CHANNEL_ID = Deno.env.get('CHANNEL_ID') || '@hey_freelancer'
+const WEBAPP_URL = Deno.env.get('WEBAPP_URL') || 't.me/hey_birazhabot/start'
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+// ============================================
+// КАТЕГОРИИ И ЭМОДЗИ
+// ============================================
+
+const CATEGORY_CONFIG: Record<string, { emoji: string; label: string; hashtag: string }> = {
+  'DEVELOPMENT': { emoji: '💻', label: 'Разработка', hashtag: '#разработка' },
+  'DESIGN': { emoji: '🎨', label: 'Дизайн', hashtag: '#дизайн' },
+  'MARKETING': { emoji: '📈', label: 'Маркетинг', hashtag: '#маркетинг' },
+  'COPYWRITING': { emoji: '✍️', label: 'Тексты', hashtag: '#копирайтинг' },
+  'OTHER': { emoji: '📦', label: 'Разное', hashtag: '#разное' },
+}
+
+// ============================================
+// ТИПЫ
+// ============================================
+
+interface Job {
+  id: string | number;
+  title: string;
+  description: string;
+  budget: string;
+  category: string;
+  is_pinned?: boolean;
+  is_highlighted?: boolean;
+  is_urgent?: boolean;
+  author_id?: number;
+  created_at?: string;
+  scheduled_at?: string;
+}
+
+interface TelegramResponse {
+  ok: boolean;
+  result?: any;
+  description?: string;
+}
+
+// ============================================
+// ФОРМАТИРОВАНИЕ - ОДИНОЧНЫЙ ПОСТ
+// ============================================
+
+function formatSingleJobPost(job: Job): string {
+  const config = CATEGORY_CONFIG[job.category] || CATEGORY_CONFIG['OTHER']
+  
+  const badges: string[] = []
+  if (job.is_urgent) badges.push('🔥 СРОЧНО')
+  if (job.is_pinned) badges.push('📌 ТОП')
+  if (job.is_highlighted) badges.push('⭐️ VIP')
+  
+  const badgeLine = badges.length > 0 ? `${badges.join(' • ')}\n\n` : ''
+  
+  let description = job.description
+  if (description.length > 500) {
+    description = description.slice(0, 497) + '...'
+  }
+  
+  const escapeHtml = (text: string) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  }
+  
+  return `${badgeLine}${config.emoji} <b>${escapeHtml(job.title)}</b>
+
+${escapeHtml(description)}
+
+💰 <b>Бюджет:</b> ${escapeHtml(job.budget)}
+📁 <b>Категория:</b> ${config.label}
+
+${config.hashtag} #фриланс #удалёнка`
+}
+
+// ============================================
+// ФОРМАТИРОВАНИЕ - КОМПАКТНЫЙ ДАЙДЖЕСТ
+// ============================================
+
+function formatCompactDigest(jobs: Job[]): string {
+  const escapeHtml = (text: string) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  }
+  
+  const today = new Date()
+  const dateStr = today.toLocaleDateString('ru-RU', { 
+    day: 'numeric', 
+    month: 'long' 
+  })
+  
+  // Заголовок
+  let post = `📋 <b>Свежие заказы</b> • ${dateStr}\n\n`
+  
+  // Компактный список заказов
+  jobs.forEach((job, index) => {
+    const config = CATEGORY_CONFIG[job.category] || CATEGORY_CONFIG['OTHER']
+    
+    // Бейджи в одну строку
+    const badges: string[] = []
+    if (job.is_urgent) badges.push('🔥')
+    if (job.is_pinned) badges.push('📌')
+    if (job.is_highlighted) badges.push('⭐️')
+    const badgeStr = badges.length > 0 ? ` ${badges.join('')}` : ''
+    
+    // Обрезаем название до 50 символов
+    let title = job.title
+    if (title.length > 50) {
+      title = title.slice(0, 47) + '...'
+    }
+    
+    // Формат: 1. 💻 Название — 50 000 ₽ [→]
+    post += `<b>${index + 1}.</b> ${config.emoji} ${escapeHtml(title)}${badgeStr}\n`
+    post += `     💰 ${escapeHtml(job.budget)} · <a href="${WEBAPP_URL}?startapp=job_${job.id}">Откликнуться</a>\n\n`
+  })
+  
+  // Футер
+  post += `━━━━━━━━━━━━━━━\n`
+  post += `📱 <a href="${WEBAPP_URL}">Все заказы в приложении</a>\n\n`
+  post += `#фриланс #работа #удалёнка`
+  
+  return post
+}
+
+// ============================================
+// ФОРМАТИРОВАНИЕ - КРАСИВЫЙ ДАЙДЖЕСТ
+// ============================================
+
+function formatPrettyDigest(jobs: Job[]): string {
+  const escapeHtml = (text: string) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  }
+  
+  const today = new Date()
+  const dateStr = today.toLocaleDateString('ru-RU', { 
+    day: 'numeric', 
+    month: 'long' 
+  })
+  
+  // Считаем общий бюджет
+  let totalBudget = 0
+  jobs.forEach(job => {
+    const match = job.budget.replace(/\s/g, '').match(/(\d+)/)
+    if (match) totalBudget += parseInt(match[1])
+  })
+  
+  // Заголовок
+  let post = `🔥 <b>ГОРЯЧИЕ ЗАКАЗЫ</b>\n`
+  post += `📅 ${dateStr}\n\n`
+  
+  // Статистика
+  post += `📊 <b>${jobs.length}</b> заказов · <b>${totalBudget.toLocaleString('ru-RU')} ₽</b> бюджет\n\n`
+  post += `━━━━━━━━━━━━━━━\n\n`
+  
+  // Карточки заказов
+  jobs.forEach((job) => {
+    const config = CATEGORY_CONFIG[job.category] || CATEGORY_CONFIG['OTHER']
+    
+    // Бейджи
+    const badges: string[] = []
+    if (job.is_urgent) badges.push('🔥')
+    if (job.is_pinned) badges.push('📌')
+    if (job.is_highlighted) badges.push('⭐')
+    const badgeStr = badges.length > 0 ? ` ${badges.join('')}` : ''
+    
+    // Обрезаем название
+    let title = job.title
+    if (title.length > 40) {
+      title = title.slice(0, 37) + '...'
+    }
+    
+    // Карточка
+    post += `${config.emoji} <b>${escapeHtml(title)}</b>${badgeStr}\n`
+    post += `└ 💰 ${escapeHtml(job.budget)} · <a href="${WEBAPP_URL}?startapp=job_${job.id}">Откликнуться →</a>\n\n`
+  })
+  
+  // Футер
+  post += `━━━━━━━━━━━━━━━\n\n`
+  post += `👉 <a href="${WEBAPP_URL}">Смотреть все заказы</a>\n\n`
+  post += `#фриланс #работа #заказы`
+  
+  return post
+}
+
+// ============================================
+// ФОРМАТИРОВАНИЕ - МИНИМАЛИСТИЧНЫЙ ДАЙДЖЕСТ
+// ============================================
+
+function formatMinimalDigest(jobs: Job[]): string {
+  const escapeHtml = (text: string) => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+  }
+  
+  let post = `📋 <b>Новые заказы:</b>\n\n`
+  
+  jobs.forEach((job) => {
+    const config = CATEGORY_CONFIG[job.category] || CATEGORY_CONFIG['OTHER']
+    
+    let title = job.title
+    if (title.length > 35) {
+      title = title.slice(0, 32) + '...'
+    }
+    
+    // Одна строка на заказ
+    post += `${config.emoji} <a href="${WEBAPP_URL}?startapp=job_${job.id}">${escapeHtml(title)}</a> — ${escapeHtml(job.budget)}\n`
+  })
+  
+  post += `\n📱 <a href="${WEBAPP_URL}">Открыть приложение</a>`
+  
+  return post
+}
+
+// ============================================
+// ОТПРАВКА В TELEGRAM
+// ============================================
+
+async function sendToChannel(text: string, inlineKeyboard?: any): Promise<TelegramResponse> {
+  const body: any = {
+    chat_id: CHANNEL_ID,
+    text: text,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true
+  }
+  
+  if (inlineKeyboard) {
+    body.reply_markup = inlineKeyboard
+  }
+  
+  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  
+  return response.json()
+}
+
+async function sendSingleJob(job: Job): Promise<TelegramResponse> {
+  const text = formatSingleJobPost(job)
+  
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [{ text: '📝 Откликнуться', url: `${WEBAPP_URL}?startapp=job_${job.id}` }],
+      [{ text: '📋 Все заказы', url: WEBAPP_URL }]
+    ]
+  }
+  
+  return sendToChannel(text, inlineKeyboard)
+}
+
+async function sendDigest(jobs: Job[], format: 'compact' | 'pretty' | 'minimal' = 'pretty'): Promise<TelegramResponse> {
+  let text: string
+  
+  switch (format) {
+    case 'compact':
+      text = formatCompactDigest(jobs)
+      break
+    case 'minimal':
+      text = formatMinimalDigest(jobs)
+      break
+    case 'pretty':
+    default:
+      text = formatPrettyDigest(jobs)
+  }
+  
+  const inlineKeyboard = {
+    inline_keyboard: [
+      [{ text: '📱 Открыть приложение', url: WEBAPP_URL }]
+    ]
+  }
+  
+  return sendToChannel(text, inlineKeyboard)
+}
+
+// ============================================
+// ЛОГИРОВАНИЕ
+// ============================================
+
+async function logPost(jobId: string | number | null, success: boolean, telegramResponse: any) {
+  try {
+    await supabase.from('channel_posts').insert({
+      job_id: jobId,
+      channel_id: CHANNEL_ID,
+      success: success,
+      telegram_message_id: telegramResponse?.result?.message_id,
+      error: success ? null : telegramResponse?.description,
+      posted_at: new Date().toISOString()
+    })
+  } catch (e) {
+    console.error('Failed to log post:', e)
+  }
+}
+
+// ============================================
+// ГЛАВНЫЙ ОБРАБОТЧИК
+// ============================================
+
+serve(async (req) => {
+  try {
+    const payload = await req.json()
+    const { type, table, record, old_record, action } = payload
+    
+    console.log(`Received: action=${action}, type=${type}, table=${table}`)
+    
+    // ========================================
+    // 1. АВТОМАТИЧЕСКИЙ ПОСТ ПРИ ОДОБРЕНИИ
+    // ========================================
+    if (table === 'jobs') {
+      
+      if (type === 'INSERT' && record.status === 'OPEN') {
+        // Проверяем scheduled_at — если время не пришло, не публикуем
+        if (record.scheduled_at && new Date(record.scheduled_at) > new Date()) {
+          console.log(`Job ${record.id} is scheduled for ${record.scheduled_at}, skipping...`)
+          return new Response(JSON.stringify({ success: true, message: 'Scheduled for later' }), {
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+        
+        console.log(`New OPEN job: ${record.id}`)
+        const result = await sendSingleJob(record)
+        await logPost(record.id, result.ok, result)
+        return new Response(JSON.stringify({ success: result.ok }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      
+      if (type === 'UPDATE' && old_record?.status === 'PENDING' && record.status === 'OPEN') {
+        // Проверяем scheduled_at — если время не пришло, не публикуем
+        if (record.scheduled_at && new Date(record.scheduled_at) > new Date()) {
+          console.log(`Job ${record.id} is scheduled for ${record.scheduled_at}, skipping...`)
+          return new Response(JSON.stringify({ success: true, message: 'Scheduled for later' }), {
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+        
+        console.log(`Job approved: ${record.id}`)
+        const result = await sendSingleJob(record)
+        await logPost(record.id, result.ok, result)
+        return new Response(JSON.stringify({ success: result.ok }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+    }
+    
+    // ========================================
+    // 2. РУЧНОЙ ПОСТ ОДНОГО ЗАКАЗА
+    // ========================================
+    if (action === 'post_job' && payload.job_id) {
+      const { data: job, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('id', payload.job_id)
+        .single()
+      
+      if (error || !job) {
+        return new Response(JSON.stringify({ error: 'Job not found' }), { status: 404 })
+      }
+      
+      const result = await sendSingleJob(job)
+      await logPost(job.id, result.ok, result)
+      
+      return new Response(JSON.stringify({ success: result.ok, result }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // ========================================
+    // 3. ДАЙДЖЕСТ (последние N заказов)
+    // ========================================
+    if (action === 'post_digest') {
+      const limit = payload.limit || 5
+      const format = payload.format || 'pretty' // 'compact', 'pretty', 'minimal'
+      
+      // Получаем заказы
+      const { data: jobs, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('status', 'OPEN')
+        .eq('is_active', true)
+        .order('is_pinned', { ascending: false })
+        .order('is_urgent', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      
+      if (error || !jobs?.length) {
+        return new Response(JSON.stringify({ error: 'No jobs found' }), { status: 404 })
+      }
+      
+      // Отправляем дайджест
+      const result = await sendDigest(jobs, format)
+      
+      // Логируем
+      for (const job of jobs) {
+        await logPost(job.id, result.ok, result)
+      }
+      
+      return new Response(JSON.stringify({ 
+        success: result.ok, 
+        posted_count: jobs.length,
+        format: format,
+        jobs: jobs.map(j => ({ id: j.id, title: j.title }))
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // ========================================
+    // 4. ВЫБОРОЧНЫЙ ДАЙДЖЕСТ (по конкретным ID)
+    // ========================================
+    if (action === 'post_selected') {
+      const jobIds = payload.job_ids // массив ID: [47, 45, 42]
+      const format = payload.format || 'pretty'
+      
+      if (!jobIds || !Array.isArray(jobIds) || jobIds.length === 0) {
+        return new Response(JSON.stringify({ 
+          error: 'job_ids array is required',
+          example: { action: 'post_selected', job_ids: [47, 45, 42], format: 'pretty' }
+        }), { status: 400 })
+      }
+      
+      console.log(`Fetching selected jobs: ${jobIds.join(', ')}`)
+      
+      // Получаем выбранные заказы
+      const { data: jobs, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .in('id', jobIds)
+        .eq('status', 'OPEN')
+        .eq('is_active', true)
+      
+      if (error) {
+        console.error('Database error:', error)
+        return new Response(JSON.stringify({ error: 'Database error', details: error }), { status: 500 })
+      }
+      
+      if (!jobs || jobs.length === 0) {
+        return new Response(JSON.stringify({ 
+          error: 'No active jobs found with these IDs',
+          requested_ids: jobIds
+        }), { status: 404 })
+      }
+      
+      // Сортируем в том же порядке, как указаны ID
+      const sortedJobs = jobIds
+        .map(id => jobs.find(j => j.id == id))
+        .filter(Boolean) as Job[]
+      
+      console.log(`Found ${sortedJobs.length} jobs, sending digest...`)
+      
+      // Отправляем дайджест
+      const result = await sendDigest(sortedJobs, format)
+      
+      // Логируем
+      for (const job of sortedJobs) {
+        await logPost(job.id, result.ok, result)
+      }
+      
+      return new Response(JSON.stringify({ 
+        success: result.ok, 
+        posted_count: sortedJobs.length,
+        format: format,
+        requested_ids: jobIds,
+        found_ids: sortedJobs.map(j => j.id),
+        jobs: sortedJobs.map(j => ({ id: j.id, title: j.title }))
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    // ========================================
+    // 5. ПУБЛИКАЦИЯ SCHEDULED ЗАКАЗОВ (для cron)
+    // ========================================
+    if (action === 'publish_scheduled') {
+      const now = new Date().toISOString()
+      
+      console.log(`Checking scheduled jobs at ${now}`)
+      
+      // Находим заказы с PENDING статусом и scheduled_at <= now
+      const { data: jobs, error } = await supabase
+        .from('jobs')
+        .select('*')
+        .eq('status', 'PENDING')
+        .not('scheduled_at', 'is', null)
+        .lte('scheduled_at', now)
+      
+      if (error) {
+        console.error('Error fetching scheduled jobs:', error)
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 })
+      }
+      
+      if (!jobs || jobs.length === 0) {
+        console.log('No scheduled jobs to publish')
+        return new Response(JSON.stringify({ message: 'No scheduled jobs to publish', checked_at: now }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      
+      console.log(`Found ${jobs.length} scheduled jobs to publish`)
+      
+      const results = []
+      for (const job of jobs) {
+        // Меняем статус на OPEN
+        const { error: updateError } = await supabase
+          .from('jobs')
+          .update({ status: 'OPEN' })
+          .eq('id', job.id)
+        
+        if (updateError) {
+          console.error(`Failed to update job ${job.id}:`, updateError)
+          results.push({ id: job.id, success: false, error: updateError.message })
+          continue
+        }
+        
+        // Публикуем в канал
+        const result = await sendSingleJob(job)
+        await logPost(job.id, result.ok, result)
+        
+        console.log(`Published job ${job.id}: ${result.ok ? 'success' : 'failed'}`)
+        results.push({ id: job.id, title: job.title, success: result.ok })
+      }
+      
+      return new Response(JSON.stringify({ 
+        success: true, 
+        checked_at: now,
+        published: results.filter(r => r.success).length,
+        total: jobs.length,
+        results 
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+    
+    return new Response(JSON.stringify({ message: 'No action taken' }), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+  } catch (error) {
+    console.error('Error:', error)
+    return new Response(JSON.stringify({ error: error.message }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
+  }
+})
