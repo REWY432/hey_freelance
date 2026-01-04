@@ -53,6 +53,7 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
   // Payment Modal
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [createdJobData, setCreatedJobData] = useState<{id: string, title: string, price: number} | null>(null);
+  const [messageCopied, setMessageCopied] = useState(false);
 
   // Calculate Total Price
   const highlightIsFree = promotions.highlight && referralBonus > 0;
@@ -296,13 +297,12 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
     
     const donateStreamUrl = DONATE_STREAM.buildPaymentUrl(createdJobData.price);
     const messageForCopy = DONATE_STREAM.buildMessage(createdJobData.id, promoFlags);
-    const [copied, setCopied] = useState(false);
     
     const handleCopyMessage = () => {
       navigator.clipboard.writeText(messageForCopy);
-      setCopied(true);
+      setMessageCopied(true);
       triggerHaptic('success');
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setMessageCopied(false), 2000);
     };
 
     // Открыть ссылку и закрыть модал
@@ -457,12 +457,12 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
                 <button 
                   onClick={handleCopyMessage}
                   className={`px-3 rounded-lg transition-all active:scale-95 ${
-                    copied 
+                    messageCopied 
                       ? 'bg-emerald-500 text-white' 
                       : 'bg-slate-700 text-white hover:bg-slate-600'
                   }`}
                 >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {messageCopied ? <Check size={16} /> : <Copy size={16} />}
                 </button>
               </div>
             </div>
