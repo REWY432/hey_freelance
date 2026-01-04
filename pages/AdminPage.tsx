@@ -118,6 +118,10 @@ const AdminPage: React.FC<AdminPageProps> = ({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   
+  // Expanded descriptions
+  const [expandedJobs, setExpandedJobs] = useState<Set<string>>(new Set());
+  const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
+  
   // Scheduled Approval Modal
   const [schedulingJobId, setSchedulingJobId] = useState<string | null>(null);
   const [scheduleDate, setScheduleDate] = useState('');
@@ -748,9 +752,25 @@ const AdminPage: React.FC<AdminPageProps> = ({
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 line-clamp-2 bg-slate-900/50 p-2 rounded border border-slate-700/50">
+            <div 
+              onClick={() => {
+                const newSet = new Set(expandedJobs);
+                if (newSet.has(job.id)) {
+                  newSet.delete(job.id);
+                } else {
+                  newSet.add(job.id);
+                }
+                setExpandedJobs(newSet);
+              }}
+              className={`text-xs text-slate-300 bg-slate-900/50 p-2 rounded border border-slate-700/50 cursor-pointer hover:bg-slate-900/70 transition-colors ${
+                expandedJobs.has(job.id) ? '' : 'line-clamp-2'
+              }`}
+            >
               {job.description}
-            </p>
+              {!expandedJobs.has(job.id) && job.description.length > 120 && (
+                <span className="text-cyan-400 ml-1">▼</span>
+              )}
+            </div>
 
             <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2">
               {job.status === JobStatus.PENDING && (
@@ -867,9 +887,25 @@ const AdminPage: React.FC<AdminPageProps> = ({
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 line-clamp-2 bg-slate-900/50 p-2 rounded border border-slate-700/50">
+            <div 
+              onClick={() => {
+                const newSet = new Set(expandedServices);
+                if (newSet.has(service.id)) {
+                  newSet.delete(service.id);
+                } else {
+                  newSet.add(service.id);
+                }
+                setExpandedServices(newSet);
+              }}
+              className={`text-xs text-slate-300 bg-slate-900/50 p-2 rounded border border-slate-700/50 cursor-pointer hover:bg-slate-900/70 transition-colors ${
+                expandedServices.has(service.id) ? '' : 'line-clamp-2'
+              }`}
+            >
               {service.description}
-            </p>
+              {!expandedServices.has(service.id) && service.description.length > 120 && (
+                <span className="text-cyan-400 ml-1">▼</span>
+              )}
+            </div>
 
             <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2">
               {service.status === ServiceStatus.PENDING && (
