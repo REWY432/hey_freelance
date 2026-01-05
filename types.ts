@@ -125,6 +125,34 @@ export interface ServiceRequest {
 }
 
 // ==========================================
+// NOTIFICATIONS
+// ==========================================
+
+export enum NotificationType {
+  NEW_PROPOSAL = 'NEW_PROPOSAL',           // Новый отклик на заказ
+  SERVICE_REQUEST = 'SERVICE_REQUEST',     // Заявка на услугу
+  JOB_APPROVED = 'JOB_APPROVED',           // Заказ одобрен
+  JOB_REJECTED = 'JOB_REJECTED',           // Заказ отклонён
+  SERVICE_APPROVED = 'SERVICE_APPROVED',   // Услуга одобрена
+  SERVICE_REJECTED = 'SERVICE_REJECTED',   // Услуга отклонена
+}
+
+export interface AppNotification {
+  id: string;
+  userId: number;
+  type: NotificationType;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  // Ссылки на объекты
+  jobId?: string;
+  serviceId?: string;
+  proposalId?: string;
+  requestId?: string;
+}
+
+// ==========================================
 // NAVIGATION
 // ==========================================
 

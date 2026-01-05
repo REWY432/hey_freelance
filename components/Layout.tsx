@@ -2,22 +2,28 @@ import React, { useState, useEffect } from 'react';
 import { ViewState } from '../types';
 import { initTelegramApp, getTelegramUser, triggerHaptic } from '../services/telegram';
 import { ADMIN_IDS } from '../constants';
-import { Briefcase, UserCircle, PlusCircle, List, Shield, ShoppingBag, X, FileText, Package } from 'lucide-react';
+import { Briefcase, UserCircle, PlusCircle, List, Shield, ShoppingBag, X, FileText, Package, Bell } from 'lucide-react';
+import NotificationCenter from './NotificationCenter';
 
 interface LayoutProps {
   children: React.ReactNode;
   currentView: ViewState;
   setView: (view: ViewState) => void;
+  unreadNotifications?: number;
+  onNavigateToObject?: (view: ViewState, id?: string) => void;
 }
 
 const Layout: React.FC<LayoutProps> = ({ 
   children, 
   currentView, 
-  setView
+  setView,
+  unreadNotifications = 0,
+  onNavigateToObject
 }) => {
   const user = getTelegramUser();
   const isAdmin = ADMIN_IDS.includes(user.id);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     initTelegramApp();
@@ -81,6 +87,26 @@ const Layout: React.FC<LayoutProps> = ({
          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-900/20 rounded-full blur-[80px]"></div>
          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/20 rounded-full blur-[80px]"></div>
       </div>
+
+      {/* Notification Bell - Fixed in top right */}
+      <button
+        onClick={() => {
+          triggerHaptic('light');
+          setShowNotifications(true);
+        }}
+        className="fixed top-4 right-4 z-40 p-3 bg-slate-800/90 backdrop-blur-xl rounded-2xl 
+                 border border-slate-700/50 shadow-lg hover:bg-slate-700 transition-all
+                 active:scale-95"
+      >
+        <Bell size={20} className="text-slate-300" />
+        {unreadNotifications > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 
+                         bg-blue-500 rounded-full text-[11px] font-bold text-white
+                         flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.5)]">
+            {unreadNotifications > 99 ? '99+' : unreadNotifications}
+          </span>
+        )}
+      </button>
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10">
@@ -193,6 +219,14 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
       )}
+
+      {/* Notification Center Drawer */}
+      <NotificationCenter
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        userId={user.id}
+        onNavigate={onNavigateToObject}
+      />
     </div>
   );
 };

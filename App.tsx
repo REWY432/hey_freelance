@@ -35,6 +35,7 @@ const App: React.FC = () => {
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null); // Для редактирования
   const [showOnboarding, setShowOnboarding] = useState(false); // Онбординг для новых пользователей
+  const [unreadNotifications, setUnreadNotifications] = useState(0); // Счётчик непрочитанных уведомлений
   
   const deepLink = useDeepLink();
   const user = getTelegramUser();
@@ -161,6 +162,10 @@ const App: React.FC = () => {
         }
 
         await loadReferralWallet();
+        
+        // Загружаем счётчик непрочитанных уведомлений
+        const unreadCount = await api.getUnreadCount(user.id);
+        setUnreadNotifications(unreadCount);
 
       } catch (error) {
         console.error("Initialization failed:", error);
@@ -172,6 +177,19 @@ const App: React.FC = () => {
 
     initApp();
   }, []);
+
+  // Polling для обновления счётчика уведомлений (каждые 30 сек)
+  useEffect(() => {
+    if (isLoading) return;
+    
+    const pollNotifications = async () => {
+      const count = await api.getUnreadCount(user.id);
+      setUnreadNotifications(count);
+    };
+
+    const interval = setInterval(pollNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [isLoading, user.id]);
 
   // Handlers
   const showNotify = (message: string, type: NotificationType = 'success') => {
@@ -490,10 +508,22 @@ const App: React.FC = () => {
     );
   }
 
+  // Хандлер навигации из уведомлений
+  const handleNavigateFromNotification = (targetView: ViewState, objectId?: string) => {
+    setView(targetView);
+    if (objectId && targetView === ViewState.PROFILE) {
+      // Можно добавить логику открытия конкретного заказа/услуги
+    }
+    // Обновляем счётчик после просмотра
+    api.getUnreadCount(user.id).then(setUnreadNotifications);
+  };
+
   return (
     <Layout 
       currentView={view} 
       setView={handleViewChange}
+      unreadNotifications={unreadNotifications}
+      onNavigateToObject={handleNavigateFromNotification}
     >
       {notification && (
         <Notification 

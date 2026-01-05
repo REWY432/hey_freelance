@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Job, FreelancerProfile, User, JobCategory, JobStatus, Proposal, Service, ServiceRequest, ServiceCategory, ServiceRequestStatus, ServiceStatus } from '../types';
+import { Job, FreelancerProfile, User, JobCategory, JobStatus, Proposal, Service, ServiceRequest, ServiceCategory, ServiceRequestStatus, ServiceStatus, AppNotification, NotificationType } from '../types';
 import { MOCK_JOBS, MOCK_FREELANCERS } from '../constants';
 
 const SUPABASE_URL = 'https://rufmwhuronrmcooozack.supabase.co';
@@ -1236,6 +1236,181 @@ export const api = {
     } catch (e) {
       console.error('Exception fetching scheduled jobs:', e);
       return [];
+    }
+  },
+
+  // ==========================================
+  // NOTIFICATIONS API
+  // ==========================================
+
+  /**
+   * Получить уведомления пользователя
+   */
+  async getNotifications(userId: number): Promise<AppNotification[]> {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        if (isTableMissing(error)) {
+          console.warn('Supabase: "notifications" table not found.');
+          return [];
+        }
+        console.error('Error fetching notifications:', error);
+        return [];
+      }
+
+      return (data || []).map((record: any) => ({
+        id: record.id.toString(),
+        userId: record.user_id,
+        type: record.type as NotificationType,
+        title: record.title,
+        message: record.message,
+        isRead: record.is_read || false,
+        createdAt: record.created_at,
+        jobId: record.job_id?.toString(),
+        serviceId: record.service_id?.toString(),
+        proposalId: record.proposal_id?.toString(),
+        requestId: record.request_id?.toString(),
+      }));
+    } catch (e) {
+      console.error('Exception fetching notifications:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Получить количество непрочитанных уведомлений
+   */
+  async getUnreadCount(userId: number): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('is_read', false);
+
+      if (error) {
+        if (isTableMissing(error)) return 0;
+        console.error('Error fetching unread count:', error);
+        return 0;
+      }
+
+      return count || 0;
+    } catch (e) {
+      console.error('Exception:', e);
+      return 0;
+    }
+  },
+
+  /**
+   * Пометить уведомление как прочитанное
+   */
+  async markNotificationRead(notificationId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error marking notification read:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Пометить все уведомления как прочитанные
+   */
+  async markAllNotificationsRead(userId: number): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', userId)
+        .eq('is_read', false);
+
+      if (error) {
+        console.error('Error marking all read:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Удалить уведомление
+   */
+  async deleteNotification(notificationId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('id', notificationId);
+
+      if (error) {
+        console.error('Error deleting notification:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Создать уведомление (обычно вызывается сервером/триггером)
+   */
+  async createNotification(notification: {
+    userId: number;
+    type: NotificationType;
+    title: string;
+    message: string;
+    jobId?: string;
+    serviceId?: string;
+    proposalId?: string;
+    requestId?: string;
+  }): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: notification.userId,
+          type: notification.type,
+          title: notification.title,
+          message: notification.message,
+          is_read: false,
+          job_id: notification.jobId ? Number(notification.jobId) : null,
+          service_id: notification.serviceId ? Number(notification.serviceId) : null,
+          proposal_id: notification.proposalId ? Number(notification.proposalId) : null,
+          request_id: notification.requestId ? Number(notification.requestId) : null,
+        });
+
+      if (error) {
+        if (isTableMissing(error)) {
+          console.warn('Notifications table not found');
+          return true;
+        }
+        console.error('Error creating notification:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
     }
   }
 };
