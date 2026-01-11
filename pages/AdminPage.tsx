@@ -1257,20 +1257,21 @@ const AdminPage: React.FC<AdminPageProps> = ({
 
       {/* Split View - Detail Panel */}
       {selectedItem && (
-        <div className="fixed inset-y-0 right-0 w-full max-w-md bg-slate-900 border-l border-slate-700 shadow-2xl z-40 animate-in slide-in-from-right duration-300 overflow-y-auto">
-          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-slate-700 p-4 flex items-center justify-between">
-            <h3 className="font-bold text-white">
+        <div className="fixed inset-0 z-[60] bg-slate-900 animate-in slide-in-from-right duration-300 overflow-y-auto">
+          {/* Header with close button */}
+          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-slate-700 p-4 flex items-center justify-between z-10">
+            <h3 className="font-bold text-white text-lg">
               {selectedItem.type === 'job' ? 'Детали заказа' : 'Детали услуги'}
             </h3>
             <button
-              onClick={() => setSelectedItem(null)}
-              className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all active:scale-95"
+              onClick={(e) => { e.stopPropagation(); setSelectedItem(null); }}
+              className="p-3 bg-slate-800 rounded-xl text-slate-400 hover:text-white hover:bg-slate-700 transition-all active:scale-95 border border-slate-700"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
 
-          <div className="p-4 space-y-4">
+          <div className="p-4 pb-32 space-y-4">
             {/* ID */}
             <div className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-400 text-xs font-mono border border-slate-700">
               <Hash size={12} /> {selectedItem.item.id}
