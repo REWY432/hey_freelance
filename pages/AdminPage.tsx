@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Job, JobStatus, Service, ServiceStatus } from '../types';
 import { api } from '../services/supabase';
 import { triggerHaptic } from '../services/telegram';
 import { 
   Trash2, ShieldAlert, User, Clock, Check, AlertTriangle, Hash, FileCode,
   Package, TrendingUp, Users, Briefcase, DollarSign, Activity,
-  BarChart3, PieChart, ArrowUp, RefreshCw, MessageSquare, X, Loader2
+  BarChart3, PieChart, ArrowUp, RefreshCw, MessageSquare, X, Loader2,
+  Megaphone, Send, ChevronRight
 } from 'lucide-react';
 import DeveloperDocs from './DeveloperDocs';
+import ConfirmSheet from '../components/ConfirmSheet';
 
 // ============================================
 // TYPES
@@ -127,6 +129,25 @@ const AdminPage: React.FC<AdminPageProps> = ({
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
 
+  // Confirm Sheet State
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'delete-job' | 'delete-service' | 'reject-service';
+    id: string;
+    title: string;
+  } | null>(null);
+
+  // Animation States
+  const [animatingApprove, setAnimatingApprove] = useState<string | null>(null);
+  const [animatingDelete, setAnimatingDelete] = useState<string | null>(null);
+
+  // Broadcast State
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
+
+  // Split View State
+  const [selectedItem, setSelectedItem] = useState<{ type: 'job' | 'service'; item: Job | Service } | null>(null);
+
   // Load Analytics
   useEffect(() => {
     if (activeTab === 'dashboard') {
@@ -181,36 +202,91 @@ const AdminPage: React.FC<AdminPageProps> = ({
   };
 
   // Job Actions
-  const handleDeleteJob = async (jobId: string) => {
-    if (!window.confirm("Удалить этот заказ?")) return;
+  const handleDeleteJob = (jobId: string, title: string) => {
+    setConfirmAction({ type: 'delete-job', id: jobId, title });
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmAction) return;
     
-    setDeletingId(jobId);
-    triggerHaptic('medium');
+    const { type, id } = confirmAction;
     
-    try {
-      const success = await api.deleteJob(jobId);
-      if (success) {
-        triggerHaptic('success');
-        onJobDeleted(jobId);
+    if (type === 'delete-job') {
+      setDeletingId(id);
+      setAnimatingDelete(id);
+      triggerHaptic('medium');
+      
+      try {
+        const success = await api.deleteJob(id);
+        if (success) {
+          triggerHaptic('success');
+          setTimeout(() => {
+            onJobDeleted(id);
+            setAnimatingDelete(null);
+          }, 300);
+        }
+      } catch (e) {
+        console.error(e);
+        setAnimatingDelete(null);
+      } finally {
+        setDeletingId(null);
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDeletingId(null);
+    } else if (type === 'delete-service') {
+      setDeletingId(id);
+      setAnimatingDelete(id);
+      triggerHaptic('medium');
+      
+      try {
+        const success = await api.deleteService(id);
+        if (success) {
+          triggerHaptic('success');
+          setTimeout(() => {
+            onServiceDeleted(id);
+            setAnimatingDelete(null);
+          }, 300);
+        }
+      } catch (e) {
+        console.error(e);
+        setAnimatingDelete(null);
+      } finally {
+        setDeletingId(null);
+      }
+    } else if (type === 'reject-service') {
+      setApprovingId(id);
+      triggerHaptic('medium');
+      
+      try {
+        const success = await api.updateServiceStatus(id, ServiceStatus.REJECTED);
+        if (success) {
+          triggerHaptic('success');
+          onServiceStatusChange(id, ServiceStatus.REJECTED);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setApprovingId(null);
+      }
     }
+    
+    setConfirmAction(null);
   };
 
   const handleApproveJob = async (jobId: string) => {
     setApprovingId(jobId);
+    setAnimatingApprove(jobId);
     triggerHaptic('medium');
     try {
       const success = await api.updateJobStatus(jobId, JobStatus.OPEN);
       if (success) {
         triggerHaptic('success');
-        onJobStatusChange(jobId, JobStatus.OPEN);
+        setTimeout(() => {
+          onJobStatusChange(jobId, JobStatus.OPEN);
+          setAnimatingApprove(null);
+        }, 400);
       }
     } catch (e) {
       console.error(e);
+      setAnimatingApprove(null);
     } finally {
       setApprovingId(null);
     }
@@ -253,56 +329,55 @@ const AdminPage: React.FC<AdminPageProps> = ({
   };
 
   // Service Actions
-  const handleDeleteService = async (serviceId: string) => {
-    if (!window.confirm("Удалить эту услугу?")) return;
-    
-    setDeletingId(serviceId);
-    triggerHaptic('medium');
-    
-    try {
-      const success = await api.deleteService(serviceId);
-      if (success) {
-        triggerHaptic('success');
-        onServiceDeleted(serviceId);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDeleteService = (serviceId: string, title: string) => {
+    setConfirmAction({ type: 'delete-service', id: serviceId, title });
   };
 
   const handleApproveService = async (serviceId: string) => {
     setApprovingId(serviceId);
+    setAnimatingApprove(serviceId);
     triggerHaptic('medium');
     try {
       const success = await api.updateServiceStatus(serviceId, ServiceStatus.ACTIVE);
       if (success) {
         triggerHaptic('success');
-        onServiceStatusChange(serviceId, ServiceStatus.ACTIVE);
+        setTimeout(() => {
+          onServiceStatusChange(serviceId, ServiceStatus.ACTIVE);
+          setAnimatingApprove(null);
+        }, 400);
       }
     } catch (e) {
       console.error(e);
+      setAnimatingApprove(null);
     } finally {
       setApprovingId(null);
     }
   };
 
-  const handleRejectService = async (serviceId: string) => {
-    if (!window.confirm("Отклонить эту услугу?")) return;
+  const handleRejectService = (serviceId: string, title: string) => {
+    setConfirmAction({ type: 'reject-service', id: serviceId, title });
+  };
+
+  // Broadcast
+  const handleSendBroadcast = async () => {
+    if (!broadcastMessage.trim()) return;
     
-    setApprovingId(serviceId);
+    setBroadcastSending(true);
     triggerHaptic('medium');
+    
     try {
-      const success = await api.updateServiceStatus(serviceId, ServiceStatus.REJECTED);
+      // API call to send broadcast (you need to implement this in supabase.ts)
+      const success = await api.sendBroadcast?.(broadcastMessage);
       if (success) {
         triggerHaptic('success');
-        onServiceStatusChange(serviceId, ServiceStatus.REJECTED);
+        setBroadcastMessage('');
+        setShowBroadcast(false);
       }
     } catch (e) {
       console.error(e);
+      triggerHaptic('error');
     } finally {
-      setApprovingId(null);
+      setBroadcastSending(false);
     }
   };
 
@@ -720,10 +795,17 @@ const AdminPage: React.FC<AdminPageProps> = ({
         displayedJobs.map((job) => (
           <div 
             key={job.id} 
-            className={`rounded-xl p-4 border flex flex-col gap-3 relative overflow-hidden ${
+            onClick={() => setSelectedItem({ type: 'job', item: job })}
+            className={`rounded-xl p-4 border flex flex-col gap-3 relative overflow-hidden cursor-pointer transition-all duration-300 ${
               job.status === JobStatus.PENDING 
                 ? 'bg-slate-800/80 border-yellow-500/30' 
                 : 'bg-slate-800 border-slate-700'
+            } ${
+              animatingApprove === job.id ? 'animate-approve-out' : ''
+            } ${
+              animatingDelete === job.id ? 'animate-delete-out' : ''
+            } ${
+              selectedItem?.type === 'job' && selectedItem.item.id === job.id ? 'ring-2 ring-blue-500' : ''
             }`}
           >
             {job.status === JobStatus.PENDING && (
@@ -794,9 +876,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </>
               )}
               <button
-                onClick={() => handleDeleteJob(job.id)}
+                onClick={() => handleDeleteJob(job.id, job.title)}
                 disabled={deletingId === job.id}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all active:scale-95"
               >
                 <Trash2 size={14} />
                 {deletingId === job.id ? '...' : 'Удалить'}
@@ -839,12 +921,19 @@ const AdminPage: React.FC<AdminPageProps> = ({
         displayedServices.map((service) => (
           <div 
             key={service.id}
-            className={`rounded-xl p-4 border flex flex-col gap-3 relative overflow-hidden ${
+            onClick={() => setSelectedItem({ type: 'service', item: service })}
+            className={`rounded-xl p-4 border flex flex-col gap-3 relative overflow-hidden cursor-pointer transition-all duration-300 ${
               service.status === ServiceStatus.PENDING 
                 ? 'bg-slate-800/80 border-yellow-500/30' 
                 : service.status === ServiceStatus.REJECTED
                   ? 'bg-slate-800/50 border-rose-500/30'
                   : 'bg-slate-800 border-slate-700'
+            } ${
+              animatingApprove === service.id ? 'animate-approve-out' : ''
+            } ${
+              animatingDelete === service.id ? 'animate-delete-out' : ''
+            } ${
+              selectedItem?.type === 'service' && selectedItem.item.id === service.id ? 'ring-2 ring-blue-500' : ''
             }`}
           >
             {/* Status Badge */}
@@ -919,9 +1008,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
                     {approvingId === service.id ? '...' : 'Одобрить'}
                   </button>
                   <button
-                    onClick={() => handleRejectService(service.id)}
+                    onClick={() => handleRejectService(service.id, service.title)}
                     disabled={!!approvingId}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 transition-all"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 transition-all active:scale-95"
                   >
                     <X size={14} />
                     Отклонить
@@ -929,9 +1018,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </>
               )}
               <button
-                onClick={() => handleDeleteService(service.id)}
+                onClick={() => handleDeleteService(service.id, service.title)}
                 disabled={deletingId === service.id}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all active:scale-95"
               >
                 <Trash2 size={14} />
                 {deletingId === service.id ? '...' : 'Удалить'}
@@ -959,12 +1048,21 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </p>
           </div>
         </div>
-        <button 
-          onClick={() => setActiveTab('docs')}
-          className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white border border-slate-700"
-        >
-          <FileCode size={20} />
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowBroadcast(true)}
+            className="p-2 bg-blue-500/20 rounded-lg text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 transition-all active:scale-95"
+            title="Broadcast"
+          >
+            <Megaphone size={20} />
+          </button>
+          <button 
+            onClick={() => setActiveTab('docs')}
+            className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white border border-slate-700 transition-all active:scale-95"
+          >
+            <FileCode size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1075,6 +1173,225 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 className="flex-1 py-3 rounded-xl bg-cyan-500 text-white font-bold hover:bg-cyan-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {approvingId ? 'Сохранение...' : 'Запланировать'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Sheet */}
+      <ConfirmSheet
+        isOpen={!!confirmAction}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={executeConfirmAction}
+        title={
+          confirmAction?.type === 'delete-job' ? 'Удалить заказ?' :
+          confirmAction?.type === 'delete-service' ? 'Удалить услугу?' :
+          'Отклонить услугу?'
+        }
+        message={`«${confirmAction?.title || ''}» будет ${
+          confirmAction?.type === 'reject-service' ? 'отклонена' : 
+          confirmAction?.type === 'delete-service' ? 'удалена' : 'удалён'
+        }. Это действие нельзя отменить.`}
+        confirmText={confirmAction?.type === 'reject-service' ? 'Отклонить' : 'Удалить'}
+        confirmVariant="danger"
+        isLoading={!!deletingId || !!approvingId}
+      />
+
+      {/* Broadcast Modal */}
+      {showBroadcast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowBroadcast(false)}
+          />
+          <div className="relative bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                <Megaphone className="text-blue-400" size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Broadcast</h3>
+                <p className="text-xs text-slate-400">Отправить сообщение всем пользователям</p>
+              </div>
+            </div>
+            
+            <textarea
+              value={broadcastMessage}
+              onChange={(e) => setBroadcastMessage(e.target.value)}
+              placeholder="Введите сообщение для всех пользователей..."
+              rows={4}
+              className="w-full bg-slate-700 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none resize-none mb-4"
+            />
+
+            <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
+              <span>{broadcastMessage.length} символов</span>
+              <span>Получат: ~{stats?.total_users || 0} пользователей</span>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowBroadcast(false)}
+                className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-all active:scale-[0.98]"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSendBroadcast}
+                disabled={!broadcastMessage.trim() || broadcastSending}
+                className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
+              >
+                {broadcastSending ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <>
+                    <Send size={16} />
+                    Отправить
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split View - Detail Panel */}
+      {selectedItem && (
+        <div className="fixed inset-y-0 right-0 w-full max-w-md bg-slate-900 border-l border-slate-700 shadow-2xl z-40 animate-in slide-in-from-right duration-300 overflow-y-auto">
+          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-slate-700 p-4 flex items-center justify-between">
+            <h3 className="font-bold text-white">
+              {selectedItem.type === 'job' ? 'Детали заказа' : 'Детали услуги'}
+            </h3>
+            <button
+              onClick={() => setSelectedItem(null)}
+              className="p-2 bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-all active:scale-95"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* ID */}
+            <div className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-slate-400 text-xs font-mono border border-slate-700">
+              <Hash size={12} /> {selectedItem.item.id}
+            </div>
+
+            {/* Title */}
+            <h2 className="text-xl font-bold text-white">
+              {selectedItem.type === 'job' 
+                ? (selectedItem.item as Job).title 
+                : (selectedItem.item as Service).title
+              }
+            </h2>
+
+            {/* Author */}
+            <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold">
+                {selectedItem.type === 'job' 
+                  ? (selectedItem.item as Job).authorName?.[0] || '?'
+                  : (selectedItem.item as Service).freelancerName?.[0] || '?'
+                }
+              </div>
+              <div>
+                <div className="font-medium text-white">
+                  {selectedItem.type === 'job' 
+                    ? (selectedItem.item as Job).authorName
+                    : (selectedItem.item as Service).freelancerName
+                  }
+                </div>
+                <div className="text-xs text-slate-400">
+                  @{selectedItem.type === 'job' 
+                    ? (selectedItem.item as Job).authorUsername
+                    : (selectedItem.item as Service).freelancerUsername
+                  }
+                </div>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div>
+              <div className="text-xs text-slate-500 uppercase tracking-wider mb-2">Описание</div>
+              <div className="p-3 bg-slate-800 rounded-xl border border-slate-700 text-sm text-slate-300 whitespace-pre-line">
+                {selectedItem.type === 'job' 
+                  ? (selectedItem.item as Job).description
+                  : (selectedItem.item as Service).description
+                }
+              </div>
+            </div>
+
+            {/* Price/Budget */}
+            <div className="flex items-center justify-between p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+              <span className="text-sm text-slate-400">
+                {selectedItem.type === 'job' ? 'Бюджет' : 'Цена'}
+              </span>
+              <span className="text-lg font-bold text-emerald-400">
+                {selectedItem.type === 'job' 
+                  ? (selectedItem.item as Job).budget
+                  : `${(selectedItem.item as Service).price?.toLocaleString()} ₽`
+                }
+              </span>
+            </div>
+
+            {/* Date */}
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Clock size={12} />
+              Создано: {new Date(selectedItem.item.createdAt).toLocaleString('ru-RU')}
+            </div>
+
+            {/* Actions */}
+            <div className="pt-4 border-t border-slate-700 space-y-2">
+              {selectedItem.type === 'job' && (selectedItem.item as Job).status === JobStatus.PENDING && (
+                <>
+                  <button
+                    onClick={() => handleApproveJob(selectedItem.item.id)}
+                    disabled={!!approvingId}
+                    className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-[0.98]"
+                  >
+                    <Check size={18} />
+                    Одобрить сейчас
+                  </button>
+                  <button
+                    onClick={() => openScheduleModal(selectedItem.item.id)}
+                    className="w-full py-3 bg-cyan-500/20 text-cyan-400 font-bold rounded-xl flex items-center justify-center gap-2 border border-cyan-500/30 hover:bg-cyan-500/30 transition-all active:scale-[0.98]"
+                  >
+                    <Clock size={18} />
+                    Запланировать
+                  </button>
+                </>
+              )}
+              
+              {selectedItem.type === 'service' && (selectedItem.item as Service).status === ServiceStatus.PENDING && (
+                <>
+                  <button
+                    onClick={() => handleApproveService(selectedItem.item.id)}
+                    disabled={!!approvingId}
+                    className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-[0.98]"
+                  >
+                    <Check size={18} />
+                    Одобрить
+                  </button>
+                  <button
+                    onClick={() => handleRejectService(selectedItem.item.id, (selectedItem.item as Service).title)}
+                    className="w-full py-3 bg-yellow-500/20 text-yellow-400 font-bold rounded-xl flex items-center justify-center gap-2 border border-yellow-500/30 hover:bg-yellow-500/30 transition-all active:scale-[0.98]"
+                  >
+                    <X size={18} />
+                    Отклонить
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => {
+                  if (selectedItem.type === 'job') {
+                    handleDeleteJob(selectedItem.item.id, (selectedItem.item as Job).title);
+                  } else {
+                    handleDeleteService(selectedItem.item.id, (selectedItem.item as Service).title);
+                  }
+                }}
+                className="w-full py-3 bg-rose-500/20 text-rose-400 font-bold rounded-xl flex items-center justify-center gap-2 border border-rose-500/30 hover:bg-rose-500/30 transition-all active:scale-[0.98]"
+              >
+                <Trash2 size={18} />
+                Удалить
               </button>
             </div>
           </div>
