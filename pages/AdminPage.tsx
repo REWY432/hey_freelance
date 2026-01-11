@@ -359,23 +359,34 @@ const AdminPage: React.FC<AdminPageProps> = ({
   };
 
   // Broadcast
+  const [broadcastResult, setBroadcastResult] = useState<'success' | 'error' | null>(null);
+  
   const handleSendBroadcast = async () => {
     if (!broadcastMessage.trim()) return;
     
     setBroadcastSending(true);
+    setBroadcastResult(null);
     triggerHaptic('medium');
     
     try {
-      // API call to send broadcast (you need to implement this in supabase.ts)
       const success = await api.sendBroadcast(broadcastMessage);
       if (success) {
         triggerHaptic('success');
+        setBroadcastResult('success');
         setBroadcastMessage('');
-        setShowBroadcast(false);
+        // Закрываем через 1.5 сек чтобы показать успех
+        setTimeout(() => {
+          setShowBroadcast(false);
+          setBroadcastResult(null);
+        }, 1500);
+      } else {
+        triggerHaptic('error');
+        setBroadcastResult('error');
       }
     } catch (e) {
-      console.error(e);
+      console.error('Broadcast error:', e);
       triggerHaptic('error');
+      setBroadcastResult('error');
     } finally {
       setBroadcastSending(false);
     }
@@ -1229,27 +1240,47 @@ const AdminPage: React.FC<AdminPageProps> = ({
               <span>Получат: ~{stats?.total_users || 0} пользователей</span>
             </div>
 
+            {/* Result feedback */}
+            {broadcastResult === 'success' && (
+              <div className="mb-4 p-3 bg-emerald-500/20 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-emerald-400 text-sm animate-in fade-in duration-200">
+                <Check size={18} />
+                Broadcast отправлен успешно!
+              </div>
+            )}
+            {broadcastResult === 'error' && (
+              <div className="mb-4 p-3 bg-rose-500/20 border border-rose-500/30 rounded-xl flex items-center gap-2 text-rose-400 text-sm animate-in fade-in duration-200">
+                <AlertTriangle size={18} />
+                Ошибка отправки. Проверьте таблицы в Supabase.
+              </div>
+            )}
+
             <div className="flex gap-3">
               <button
-                onClick={() => setShowBroadcast(false)}
-                className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-all active:scale-[0.98]"
+                onClick={() => { setShowBroadcast(false); setBroadcastResult(null); }}
+                disabled={broadcastSending}
+                className="flex-1 py-3 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-all active:scale-[0.98] disabled:opacity-50"
               >
-                Отмена
+                {broadcastResult === 'success' ? 'Закрыть' : 'Отмена'}
               </button>
-              <button
-                onClick={handleSendBroadcast}
-                disabled={!broadcastMessage.trim() || broadcastSending}
-                className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
-              >
-                {broadcastSending ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <>
-                    <Send size={16} />
-                    Отправить
-                  </>
-                )}
-              </button>
+              {broadcastResult !== 'success' && (
+                <button
+                  onClick={handleSendBroadcast}
+                  disabled={!broadcastMessage.trim() || broadcastSending}
+                  className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:bg-blue-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-[0.98]"
+                >
+                  {broadcastSending ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" />
+                      Отправка...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={16} />
+                      Отправить
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>
