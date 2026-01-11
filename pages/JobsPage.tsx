@@ -375,12 +375,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
                   style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
                 >
                   {isHighlighted && (
-                    <>
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/20 rounded-full -mr-10 -mt-10 blur-2xl pointer-events-none" />
-                      <div className="absolute -top-1 -left-1 px-2 py-1 bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-[10px] font-black uppercase tracking-wider rounded-br-lg rounded-tl-xl shadow-lg z-20">
-                        ⭐ ТОП
-                      </div>
-                    </>
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/20 rounded-full -mr-10 -mt-10 blur-2xl pointer-events-none" />
                   )}
 
                   {/* Header */}
