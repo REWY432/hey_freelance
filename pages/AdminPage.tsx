@@ -360,13 +360,19 @@ const AdminPage: React.FC<AdminPageProps> = ({
 
   // Broadcast
   const [broadcastResult, setBroadcastResult] = useState<'success' | 'error' | null>(null);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  
+  const addLog = (msg: string) => {
+    setDebugLog(prev => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
   
   const handleSendBroadcast = async () => {
-    console.log('=== BROADCAST START ===');
-    console.log('Message:', broadcastMessage);
+    setDebugLog([]);
+    addLog('START');
+    addLog(`Message: "${broadcastMessage}"`);
     
     if (!broadcastMessage.trim()) {
-      console.log('Empty message, returning');
+      addLog('Empty message!');
       return;
     }
     
@@ -375,30 +381,31 @@ const AdminPage: React.FC<AdminPageProps> = ({
     triggerHaptic('medium');
     
     try {
-      console.log('Calling api.sendBroadcast...');
+      addLog('Calling api.sendBroadcast...');
       const success = await api.sendBroadcast(broadcastMessage);
-      console.log('Result:', success);
+      addLog(`Result: ${success}`);
       
       if (success) {
         triggerHaptic('success');
         setBroadcastResult('success');
         setBroadcastMessage('');
+        addLog('SUCCESS!');
         setTimeout(() => {
           setShowBroadcast(false);
           setBroadcastResult(null);
-        }, 1500);
+          setDebugLog([]);
+        }, 2000);
       } else {
-        console.log('sendBroadcast returned false');
+        addLog('API returned false');
         triggerHaptic('error');
         setBroadcastResult('error');
       }
     } catch (e: any) {
-      console.error('Broadcast exception:', e);
-      console.error('Error message:', e?.message);
+      addLog(`ERROR: ${e?.message || e}`);
       triggerHaptic('error');
       setBroadcastResult('error');
     } finally {
-      console.log('=== BROADCAST END ===');
+      addLog('END');
       setBroadcastSending(false);
     }
   };
@@ -1250,6 +1257,16 @@ const AdminPage: React.FC<AdminPageProps> = ({
               <span>{broadcastMessage.length} символов</span>
               <span>Получат: ~{stats?.total_users || 0} пользователей</span>
             </div>
+
+            {/* Debug Log */}
+            {debugLog.length > 0 && (
+              <div className="mb-4 p-2 bg-slate-900 rounded-lg border border-slate-600 max-h-32 overflow-y-auto">
+                <div className="text-[10px] text-slate-500 mb-1">Debug:</div>
+                {debugLog.map((log, i) => (
+                  <div key={i} className="text-[11px] text-slate-400 font-mono">{log}</div>
+                ))}
+              </div>
+            )}
 
             {/* Result feedback */}
             {broadcastResult === 'success' && (
