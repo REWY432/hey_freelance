@@ -482,6 +482,38 @@ textarea:focus-visible {
   100% { --angle: 360deg; }
 }
 
+/* Highlighted card - яркое выделение для оплаченных заказов */
+.highlighted-card {
+  position: relative;
+  border: 2px solid #eab308 !important;
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.1) 0%, rgba(30, 41, 59, 1) 50%) !important;
+  box-shadow: 
+    0 0 20px rgba(234, 179, 8, 0.25),
+    0 0 40px rgba(234, 179, 8, 0.1),
+    inset 0 1px 0 rgba(234, 179, 8, 0.2) !important;
+}
+
+.highlighted-card::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, #eab308, #f97316, #eab308);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: border-pulse 2s ease-in-out infinite;
+}
+
+@keyframes border-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Legacy animated border (for browsers supporting @property) */
 @property --angle {
   syntax: '<angle>';
   initial-value: 0deg;
@@ -490,10 +522,8 @@ textarea:focus-visible {
 
 .gradient-border-animated {
   position: relative;
-  background: linear-gradient(var(--card-bg, #1e293b), var(--card-bg, #1e293b)) padding-box,
-              conic-gradient(from var(--angle), #eab308, #f97316, #ef4444, #ec4899, #a855f7, #3b82f6, #eab308) border-box;
-  border: 2px solid transparent;
-  animation: gradient-rotate 3s linear infinite;
+  border: 2px solid #eab308 !important;
+  box-shadow: 0 0 25px rgba(234, 179, 8, 0.3);
 }
 
 /* === FAB PULSE === */
