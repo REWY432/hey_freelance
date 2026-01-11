@@ -382,26 +382,26 @@ const AdminPage: React.FC<AdminPageProps> = ({
     
     try {
       addLog('Calling api.sendBroadcast...');
-      const success = await api.sendBroadcast(broadcastMessage);
-      addLog(`Result: ${success}`);
+      const result = await api.sendBroadcast(broadcastMessage);
+      addLog(`Success: ${result.success}`);
       
-      if (success) {
+      if (result.success) {
+        addLog(`Sent to ${result.usersCount} users`);
         triggerHaptic('success');
         setBroadcastResult('success');
         setBroadcastMessage('');
-        addLog('SUCCESS!');
         setTimeout(() => {
           setShowBroadcast(false);
           setBroadcastResult(null);
           setDebugLog([]);
         }, 2000);
       } else {
-        addLog('API returned false');
+        addLog(`Error: ${result.error}`);
         triggerHaptic('error');
         setBroadcastResult('error');
       }
     } catch (e: any) {
-      addLog(`ERROR: ${e?.message || e}`);
+      addLog(`Exception: ${e?.message || e}`);
       triggerHaptic('error');
       setBroadcastResult('error');
     } finally {
