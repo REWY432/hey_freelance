@@ -63,11 +63,11 @@ export const useLazyLoadList = <T>(
 
   useEffect(() => {
     const element = loadMoreRef.current;
-    if (!element) return;
+    if (!element || visibleCount >= items.length) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && visibleCount < items.length) {
+        if (entry.isIntersecting) {
           loadMore();
         }
       },
@@ -79,17 +79,15 @@ export const useLazyLoadList = <T>(
     return () => observer.disconnect();
   }, [visibleCount, items.length, loadMore]);
 
-  // Reset when items change significantly
-  useEffect(() => {
-    if (items.length < visibleCount) {
-      setVisibleCount(Math.min(initialCount, items.length));
-    }
-  }, [items.length, visibleCount, initialCount]);
+  // Сколько реально показывать: min(visibleCount, items.length) но не меньше initialCount если items есть
+  const count = items.length <= initialCount 
+    ? items.length 
+    : Math.max(Math.min(visibleCount, items.length), initialCount);
 
   return {
-    visibleItems: items.slice(0, visibleCount),
+    visibleItems: items.slice(0, count),
     loadMoreRef,
-    hasMore: visibleCount < items.length,
+    hasMore: count < items.length,
     loadMore
   };
 };
