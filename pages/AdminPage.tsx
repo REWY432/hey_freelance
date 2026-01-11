@@ -1257,9 +1257,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
 
       {/* Split View - Detail Panel */}
       {selectedItem && (
-        <div className="fixed inset-0 z-[60] bg-slate-900 animate-in slide-in-from-right duration-300 overflow-y-auto">
+        <div className="fixed inset-0 z-[100] bg-slate-900 animate-in slide-in-from-right duration-300 overflow-y-auto">
           {/* Header with close button */}
-          <div className="sticky top-0 bg-slate-900/95 backdrop-blur-xl border-b border-slate-700 p-4 flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-slate-900 border-b border-slate-700 p-4 flex items-center justify-between z-[101] safe-area-top">
             <h3 className="font-bold text-white text-lg">
               {selectedItem.type === 'job' ? 'Детали заказа' : 'Детали услуги'}
             </h3>
