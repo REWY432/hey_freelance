@@ -362,32 +362,43 @@ const AdminPage: React.FC<AdminPageProps> = ({
   const [broadcastResult, setBroadcastResult] = useState<'success' | 'error' | null>(null);
   
   const handleSendBroadcast = async () => {
-    if (!broadcastMessage.trim()) return;
+    console.log('=== BROADCAST START ===');
+    console.log('Message:', broadcastMessage);
+    
+    if (!broadcastMessage.trim()) {
+      console.log('Empty message, returning');
+      return;
+    }
     
     setBroadcastSending(true);
     setBroadcastResult(null);
     triggerHaptic('medium');
     
     try {
+      console.log('Calling api.sendBroadcast...');
       const success = await api.sendBroadcast(broadcastMessage);
+      console.log('Result:', success);
+      
       if (success) {
         triggerHaptic('success');
         setBroadcastResult('success');
         setBroadcastMessage('');
-        // Закрываем через 1.5 сек чтобы показать успех
         setTimeout(() => {
           setShowBroadcast(false);
           setBroadcastResult(null);
         }, 1500);
       } else {
+        console.log('sendBroadcast returned false');
         triggerHaptic('error');
         setBroadcastResult('error');
       }
-    } catch (e) {
-      console.error('Broadcast error:', e);
+    } catch (e: any) {
+      console.error('Broadcast exception:', e);
+      console.error('Error message:', e?.message);
       triggerHaptic('error');
       setBroadcastResult('error');
     } finally {
+      console.log('=== BROADCAST END ===');
       setBroadcastSending(false);
     }
   };

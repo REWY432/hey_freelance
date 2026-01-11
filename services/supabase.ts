@@ -1418,25 +1418,32 @@ export const api = {
    * Send broadcast message to all users
    */
   async sendBroadcast(message: string): Promise<boolean> {
+    console.log('[sendBroadcast] Starting with message:', message);
+    
     try {
       // Get all user IDs
+      console.log('[sendBroadcast] Fetching users...');
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select('id');
 
+      console.log('[sendBroadcast] Users result:', { users, usersError });
+
       if (usersError) {
         if (isTableMissing(usersError)) {
-          console.warn('Users table not found');
+          console.warn('[sendBroadcast] Users table not found');
           return false;
         }
-        console.error('Error fetching users:', usersError);
+        console.error('[sendBroadcast] Error fetching users:', usersError);
         return false;
       }
 
       if (!users || users.length === 0) {
-        console.warn('No users to broadcast to');
+        console.warn('[sendBroadcast] No users to broadcast to');
         return true;
       }
+
+      console.log(`[sendBroadcast] Found ${users.length} users`);
 
       // Create notifications for all users
       const notifications = users.map(user => ({
@@ -1447,23 +1454,30 @@ export const api = {
         is_read: false,
       }));
 
+      console.log('[sendBroadcast] Inserting notifications...');
+
       // Insert in batches of 100
       const batchSize = 100;
       for (let i = 0; i < notifications.length; i += batchSize) {
         const batch = notifications.slice(i, i + batchSize);
+        console.log(`[sendBroadcast] Inserting batch ${i / batchSize + 1}...`);
+        
         const { error } = await supabase
           .from('notifications')
           .insert(batch);
 
-        if (error && !isTableMissing(error)) {
-          console.error('Error inserting broadcast notifications:', error);
+        if (error) {
+          console.error('[sendBroadcast] Insert error:', error);
+          if (!isTableMissing(error)) {
+            return false;
+          }
         }
       }
 
-      console.log(`Broadcast sent to ${users.length} users`);
+      console.log(`[sendBroadcast] SUCCESS - sent to ${users.length} users`);
       return true;
     } catch (e) {
-      console.error('Broadcast exception:', e);
+      console.error('[sendBroadcast] Exception:', e);
       return false;
     }
   }
