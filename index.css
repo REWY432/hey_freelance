@@ -455,3 +455,123 @@ textarea:focus-visible {
 .avatar-placeholder {
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
+
+/* === TOAST PROGRESS BAR === */
+@keyframes shrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+.animate-shrink {
+  animation: shrink linear forwards;
+}
+
+/* === SUCCESS ANIMATION === */
+@keyframes success-pop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-success-pop {
+  animation: success-pop 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* === ANIMATED GRADIENT BORDER === */
+@keyframes gradient-rotate {
+  0% { --angle: 0deg; }
+  100% { --angle: 360deg; }
+}
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.gradient-border-animated {
+  position: relative;
+  background: linear-gradient(var(--card-bg, #1e293b), var(--card-bg, #1e293b)) padding-box,
+              conic-gradient(from var(--angle), #eab308, #f97316, #ef4444, #ec4899, #a855f7, #3b82f6, #eab308) border-box;
+  border: 2px solid transparent;
+  animation: gradient-rotate 3s linear infinite;
+}
+
+/* === FAB PULSE === */
+@keyframes fab-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { box-shadow: 0 0 0 12px rgba(59, 130, 246, 0); }
+}
+
+.fab-pulse {
+  animation: fab-pulse 2s ease-in-out infinite;
+}
+
+/* === SAFE AREAS iOS === */
+.safe-area-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+.safe-area-inset-bottom {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* === SHIMMER SYNC (all shimmer on same timing) === */
+@keyframes shimmer-sync {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-sync {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sync 1.5s ease-in-out infinite;
+}
+
+/* === LAZY LOAD FADE IN === */
+.lazy-fade-in {
+  opacity: 0;
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+@keyframes fade-in {
+  to { opacity: 1; }
+}
+
+/* === BUTTON GLOW ON HOVER === */
+.btn-glow {
+  transition: box-shadow 0.2s ease;
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+}
+
+.btn-glow:active {
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.6);
+}
+
+/* === CONFETTI ANIMATION === */
+@keyframes confetti {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg) scale(0);
+    opacity: 0;
+  }
+}
+
+.animate-confetti {
+  animation: confetti ease-out forwards;
+}

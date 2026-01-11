@@ -144,12 +144,101 @@ export const ServiceGridSkeleton: React.FC<{ count?: number }> = ({ count = 4 })
   </div>
 );
 
+// Skeleton для карточки отклика (Proposal)
+export const ProposalCardSkeleton: React.FC = () => (
+  <div className={`bg-slate-800 border border-slate-700 rounded-2xl p-5 ${shimmerClass}`}>
+    {/* Header */}
+    <div className="flex justify-between items-start mb-4">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-slate-700 rounded-full" />
+        <div className="flex flex-col gap-1">
+          <div className="h-4 w-24 bg-slate-700 rounded" />
+          <div className="h-3 w-16 bg-slate-700 rounded" />
+        </div>
+      </div>
+      <div className="h-3 w-20 bg-slate-700 rounded" />
+    </div>
+    
+    {/* Cover letter */}
+    <div className="bg-slate-900/50 p-3 rounded-xl rounded-tl-none border border-slate-700/50 mb-4 space-y-2">
+      <div className="h-3 w-full bg-slate-700 rounded" />
+      <div className="h-3 w-5/6 bg-slate-700 rounded" />
+      <div className="h-3 w-4/6 bg-slate-700 rounded" />
+    </div>
+    
+    {/* Skills */}
+    <div className="flex gap-2 mb-4">
+      <div className="h-5 w-14 bg-slate-700 rounded" />
+      <div className="h-5 w-16 bg-slate-700 rounded" />
+      <div className="h-5 w-12 bg-slate-700 rounded" />
+    </div>
+    
+    {/* Button */}
+    <div className="h-12 w-full bg-slate-700 rounded-xl" />
+  </div>
+);
+
+export const ProposalsListSkeleton: React.FC<{ count?: number }> = ({ count = 2 }) => (
+  <div className="space-y-4">
+    {Array.from({ length: count }).map((_, i) => (
+      <ProposalCardSkeleton key={i} />
+    ))}
+  </div>
+);
+
+// Skeleton для профиля
+export const ProfileHeaderSkeleton: React.FC = () => (
+  <div className={`p-6 rounded-3xl bg-gradient-to-br from-slate-700 to-slate-800 ${shimmerClass}`}>
+    <div className="flex flex-col items-center">
+      <div className="w-16 h-16 rounded-full bg-slate-600 mb-2" />
+      <div className="h-5 w-32 bg-slate-600 rounded mb-1" />
+      <div className="h-3 w-20 bg-slate-600 rounded" />
+    </div>
+  </div>
+);
+
+export const ProfileTabsSkeleton: React.FC = () => (
+  <div className="flex p-1 bg-slate-800 rounded-xl mb-6">
+    <div className="flex-1 py-2 flex justify-center">
+      <div className="h-3 w-16 bg-slate-700 rounded" />
+    </div>
+    <div className="flex-1 py-2 flex justify-center">
+      <div className="h-3 w-20 bg-slate-700 rounded" />
+    </div>
+    <div className="flex-1 py-2 flex justify-center">
+      <div className="h-3 w-16 bg-slate-700 rounded" />
+    </div>
+  </div>
+);
+
+export const ProfileContentSkeleton: React.FC = () => (
+  <div className={`space-y-6 ${shimmerClass}`}>
+    <div>
+      <div className="h-3 w-16 bg-slate-700 rounded mb-2" />
+      <div className="h-24 w-full bg-slate-800 rounded-xl" />
+    </div>
+    <div>
+      <div className="h-3 w-14 bg-slate-700 rounded mb-2" />
+      <div className="flex gap-2">
+        <div className="h-8 w-16 bg-slate-800 rounded-lg" />
+        <div className="h-8 w-20 bg-slate-800 rounded-lg" />
+        <div className="h-8 w-14 bg-slate-800 rounded-lg" />
+      </div>
+    </div>
+  </div>
+);
+
 export default {
   JobCardSkeleton,
   ServiceCardSkeleton,
   ServiceCardCompactSkeleton,
   JobListSkeleton,
   ServiceListSkeleton,
-  ServiceGridSkeleton
+  ServiceGridSkeleton,
+  ProposalCardSkeleton,
+  ProposalsListSkeleton,
+  ProfileHeaderSkeleton,
+  ProfileTabsSkeleton,
+  ProfileContentSkeleton
 };
 

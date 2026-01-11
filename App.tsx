@@ -8,9 +8,12 @@ import CreateServiceWizard from './pages/CreateServiceWizard';
 import FreelancersPage from './pages/FreelancersPage';
 import ProfilePage from './pages/ProfilePage';
 import AdminPage from './pages/AdminPage'; 
-import Notification, { NotificationType } from './components/Notification';
+import Toast, { ToastType } from './components/Toast';
+import OfflineBanner from './components/OfflineBanner';
 import JobDetailModal from './components/JobDetailModal';
+import SuccessAnimation from './components/SuccessAnimation';
 import { useDeepLink } from './hooks/useDeepLink';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
 import { ViewState, Job, Service, FreelancerProfile, JobStatus, ServiceStatus, JobCategory } from './types';
 import { getTelegramUser, triggerHaptic, buildReferralLink, shareContent } from './services/telegram';
 import { api } from './services/supabase';
@@ -32,13 +35,15 @@ const App: React.FC = () => {
   const [referralWallet, setReferralWallet] = useState<{ earned: number; balance: number }>({ earned: 0, balance: 0 });
   
   // UI
-  const [notification, setNotification] = useState<{message: string, type: NotificationType} | null>(null);
+  const [notification, setNotification] = useState<{message: string, type: ToastType} | null>(null);
   const [openJobId, setOpenJobId] = useState<string | null>(null);
   const [editingService, setEditingService] = useState<Service | null>(null); // Для редактирования
   const [showOnboarding, setShowOnboarding] = useState(false); // Онбординг для новых пользователей
   const [unreadNotifications, setUnreadNotifications] = useState(0); // Счётчик непрочитанных уведомлений
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false); // Success animation после отклика
   
   const deepLink = useDeepLink();
+  const isOnline = useOnlineStatus();
   const user = getTelegramUser();
   const referralLogged = useRef(false);
   const referralStorageKey = `referral_wallet_${user.id}`;
@@ -195,9 +200,16 @@ const App: React.FC = () => {
   }, [isLoading, user.id]);
 
   // Handlers
-  const showNotify = (message: string, type: NotificationType = 'success') => {
+  const showNotify = (message: string, type: ToastType = 'success') => {
     setNotification({ message, type });
     triggerHaptic(type === 'error' ? 'error' : 'success');
+  };
+
+  // Success animation handler
+  const showSuccess = () => {
+    setShowSuccessAnimation(true);
+    triggerHaptic('success');
+    setTimeout(() => setShowSuccessAnimation(false), 2000);
   };
 
   const handleOnboardingComplete = async (data?: { interests?: JobCategory[] }) => {
@@ -538,14 +550,22 @@ const App: React.FC = () => {
       setView={handleViewChange}
       unreadNotifications={unreadNotifications}
       onNavigateToObject={handleNavigateFromNotification}
+      isOffline={!isOnline}
     >
+      {/* Offline Banner */}
+      <OfflineBanner isOffline={!isOnline} />
+
+      {/* Toast Notification */}
       {notification && (
-        <Notification 
+        <Toast 
           message={notification.message} 
           type={notification.type} 
           onClose={() => setNotification(null)} 
         />
       )}
+
+      {/* Success Animation */}
+      {showSuccessAnimation && <SuccessAnimation />}
       
       {renderContent()}
       
@@ -553,7 +573,10 @@ const App: React.FC = () => {
         <JobDetailModal
           jobId={openJobId}
           onClose={() => setOpenJobId(null)}
-          onApply={() => showNotify('Отклик отправлен!', 'success')}
+          onApply={() => {
+            showNotify('Отклик отправлен!', 'success');
+            showSuccess();
+          }}
         />
       )}
 

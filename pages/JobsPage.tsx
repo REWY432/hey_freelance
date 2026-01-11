@@ -9,6 +9,7 @@ import { useLiveJobs } from '../hooks/useLiveJobs';
 import { JobListSkeleton } from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import PullToRefresh from '../components/PullToRefresh';
+import { useLazyLoadList } from '../hooks/useIntersectionObserver';
 import { Send, Clock, Briefcase, Heart, Filter, Pin, Flame, ChevronDown, ChevronUp, X, Check, Search, Share2, Loader2 } from 'lucide-react';
 
 // Хук для debounce
@@ -245,6 +246,13 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
     return counts;
   }, [jobs]);
 
+  // Lazy loading - показываем по 10 карточек и подгружаем ещё при скролле
+  const { visibleItems: visibleJobs, loadMoreRef, hasMore } = useLazyLoadList(
+    filteredJobs,
+    10, // initial count
+    8   // load more count
+  );
+
   return (
     <PullToRefresh onRefresh={handlePullRefresh}>
       <div className="p-0 space-y-4">
@@ -349,14 +357,15 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
               searchQuery={debouncedSearch}
             />
           ) : (
-            filteredJobs.map((job, index) => {
+            <>
+            {visibleJobs.map((job, index) => {
               const isBookmarked = bookmarks.includes(job.id);
               const isExpanded = expandedJobs.includes(job.id);
               const isApplied = appliedJobs.includes(job.id);
               const isHighlighted = job.isHighlighted;
               
               const containerClasses = isHighlighted
-                ? "bg-gradient-to-br from-slate-800 to-slate-800/80 border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.1)]"
+                ? "bg-gradient-to-br from-slate-800 to-slate-800/80 gradient-border-animated shadow-[0_0_20px_rgba(234,179,8,0.15)]"
                 : "bg-slate-800/50 border-slate-700/50";
                 
               return (
@@ -457,8 +466,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
                           ? 'bg-slate-700 cursor-not-allowed shadow-none'
                           : isHighlighted 
                             ? 'bg-yellow-600 hover:bg-yellow-500 shadow-yellow-600/20 active:scale-95' 
-                            : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20 active:scale-95'
-                      } ${!isApplied ? 'btn-bounce' : ''}`}
+                              : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/20 active:scale-95'
+                      } ${!isApplied ? 'btn-bounce btn-glow' : ''}`}
                     >
                       {isApplied ? (
                         <>
@@ -475,7 +484,18 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
                   </div>
                 </div>
               );
-            })
+            })}
+            
+            {/* Load more trigger */}
+            {hasMore && (
+              <div ref={loadMoreRef} className="flex justify-center py-4">
+                <div className="flex items-center gap-2 text-slate-500 text-sm">
+                  <Loader2 size={16} className="animate-spin" />
+                  Загрузка...
+                </div>
+              </div>
+            )}
+            </>
           )}
         </div>
 

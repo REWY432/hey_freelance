@@ -3,6 +3,7 @@ import { getTelegramUser, triggerHaptic, openTelegramChat } from '../services/te
 import { api } from '../services/supabase';
 import { FreelancerProfile, Job, JobStatus, Service, ServiceStatus, ServiceCategory } from '../types';
 import ProposalsList from '../components/ProposalsList';
+import ConfirmSheet from '../components/ConfirmSheet';
 import { 
   X, Plus, Trash2, Eye, EyeOff, Link as LinkIcon, AlertTriangle, CheckCircle, 
   Bell, MessageSquare, ChevronRight, Package, Edit3, Clock, Loader2, Gift, Share2, Copy, ArrowUp
@@ -69,8 +70,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   const [proposals, setProposals] = useState<any[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
 
-  // Service Delete State
-  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  // Confirm Sheet State
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'job' | 'service'; id: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Sync state if prop changes
   useEffect(() => {
@@ -145,12 +147,38 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   };
 
   // Job handlers
-  const handleDeleteJob = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteJob = (id: string, title: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Удалить этот заказ навсегда?')) return;
+    setConfirmDelete({ type: 'job', id, title });
+  };
+  
+  const confirmDeleteAction = async () => {
+    if (!confirmDelete) return;
+    
+    setIsDeleting(true);
     triggerHaptic('medium');
-    const success = await api.deleteJob(id);
-    if (success) onJobDelete(id);
+    
+    try {
+      if (confirmDelete.type === 'job') {
+        const success = await api.deleteJob(confirmDelete.id);
+        if (success) {
+          onJobDelete(confirmDelete.id);
+          triggerHaptic('success');
+        }
+      } else {
+        const success = await api.deleteService(confirmDelete.id);
+        if (success) {
+          onServiceDelete(confirmDelete.id);
+          triggerHaptic('success');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      triggerHaptic('error');
+    } finally {
+      setIsDeleting(false);
+      setConfirmDelete(null);
+    }
   };
 
   const handleToggleJobStatus = async (job: Job, e: React.MouseEvent) => {
@@ -176,25 +204,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   };
 
   // Service handlers
-  const handleDeleteService = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteService = (id: string, title: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Удалить эту услугу навсегда?')) return;
-    
-    setDeletingServiceId(id);
-    triggerHaptic('medium');
-    
-    try {
-      const success = await api.deleteService(id);
-      if (success) {
-        onServiceDelete(id);
-        triggerHaptic('success');
-      }
-    } catch (e) {
-      console.error(e);
-      triggerHaptic('error');
-    } finally {
-      setDeletingServiceId(null);
-    }
+    setConfirmDelete({ type: 'service', id, title });
   };
 
   const handleEditService = (service: Service, e: React.MouseEvent) => {
@@ -507,8 +519,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                       </button>
                     )}
                     <button 
-                      onClick={(e) => handleDeleteJob(job.id, e)}
-                      className="p-2 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                      onClick={(e) => handleDeleteJob(job.id, job.title, e)}
+                      className="p-2 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 active:scale-90 transition-transform"
                     >
                       <Trash2 size={14}/>
                     </button>
@@ -627,16 +639,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                     Изменить
                   </button>
                   <button
-                    onClick={(e) => handleDeleteService(service.id, e)}
-                    disabled={deletingServiceId === service.id}
+                    onClick={(e) => handleDeleteService(service.id, service.title, e)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 
-                             border border-rose-500/20 hover:bg-rose-500/20 transition-all disabled:opacity-50"
+                             border border-rose-500/20 hover:bg-rose-500/20 transition-all active:scale-95"
                   >
-                    {deletingServiceId === service.id ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={14} />
-                    )}
+                    <Trash2 size={14} />
                     Удалить
                   </button>
                 </div>
@@ -645,6 +652,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           )}
         </div>
       )}
+
+      {/* Confirm Delete Sheet */}
+      <ConfirmSheet
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={confirmDeleteAction}
+        title={confirmDelete?.type === 'job' ? 'Удалить заказ?' : 'Удалить услугу?'}
+        message={`«${confirmDelete?.title || ''}» будет удалён${confirmDelete?.type === 'service' ? 'а' : ''} навсегда. Это действие нельзя отменить.`}
+        confirmText="Удалить"
+        confirmVariant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 };

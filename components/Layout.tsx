@@ -4,6 +4,8 @@ import { initTelegramApp, getTelegramUser, triggerHaptic } from '../services/tel
 import { ADMIN_IDS } from '../constants';
 import { Briefcase, UserCircle, PlusCircle, List, Shield, ShoppingBag, X, FileText, Package, Bell } from 'lucide-react';
 import NotificationCenter from './NotificationCenter';
+import FloatingActionButton from './FloatingActionButton';
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,20 +13,44 @@ interface LayoutProps {
   setView: (view: ViewState) => void;
   unreadNotifications?: number;
   onNavigateToObject?: (view: ViewState, id?: string) => void;
+  isOffline?: boolean;
 }
+
+// Порядок основных вкладок для свайп-навигации
+const NAV_ORDER: ViewState[] = [ViewState.JOBS, ViewState.SERVICES, ViewState.PROFILE];
 
 const Layout: React.FC<LayoutProps> = ({ 
   children, 
   currentView, 
   setView,
   unreadNotifications = 0,
-  onNavigateToObject
+  onNavigateToObject,
+  isOffline = false
 }) => {
   const user = getTelegramUser();
   const isAdmin = ADMIN_IDS.includes(user.id);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+
+  // Swipe navigation between tabs
+  const currentNavIndex = NAV_ORDER.indexOf(currentView);
+  const canSwipe = currentNavIndex !== -1; // Только на основных вкладках
+  
+  const swipeHandlers = useSwipeNavigation({
+    onSwipeLeft: () => {
+      if (canSwipe && currentNavIndex < NAV_ORDER.length - 1) {
+        setView(NAV_ORDER[currentNavIndex + 1]);
+      }
+    },
+    onSwipeRight: () => {
+      if (canSwipe && currentNavIndex > 0) {
+        setView(NAV_ORDER[currentNavIndex - 1]);
+      }
+    },
+    enabled: canSwipe,
+    threshold: 60
+  });
 
   useEffect(() => {
     initTelegramApp();
@@ -119,14 +145,34 @@ const Layout: React.FC<LayoutProps> = ({
         </button>
       </header>
 
-      {/* Content */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10">
+      {/* Content with swipe support */}
+      <main 
+        ref={mainRef} 
+        className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10"
+        {...swipeHandlers}
+      >
         {children}
       </main>
 
+      {/* Swipe indicator dots */}
+      {canSwipe && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 flex gap-2 z-40">
+          {NAV_ORDER.map((nav, i) => (
+            <div 
+              key={nav}
+              className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                i === currentNavIndex 
+                  ? 'bg-blue-500 w-4' 
+                  : 'bg-slate-600'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Bottom Navigation */}
       <nav 
-        className="fixed bottom-4 left-4 right-4 h-14 rounded-2xl flex justify-around items-center z-50 border border-white/5 shadow-2xl backdrop-blur-xl bg-slate-800/80 safe-area-bottom"
+        className="fixed bottom-4 left-4 right-4 h-14 rounded-2xl flex justify-around items-center z-50 border border-white/5 shadow-2xl backdrop-blur-xl bg-slate-800/80 safe-area-inset-bottom"
       >
         {/* Заказы (для исполнителей) */}
         <NavItem view={ViewState.JOBS} icon={List} label="Заказы" />
@@ -230,6 +276,13 @@ const Layout: React.FC<LayoutProps> = ({
           </div>
         </div>
       )}
+
+      {/* Floating Action Button (shows on scroll) */}
+      <FloatingActionButton
+        onCreateJob={() => handleCreateOption(ViewState.CREATE_JOB)}
+        onCreateService={() => handleCreateOption(ViewState.CREATE_SERVICE)}
+        showAfterScroll={300}
+      />
 
       {/* Notification Center Drawer */}
       <NotificationCenter
