@@ -1419,10 +1419,10 @@ export const api = {
    */
   async sendBroadcast(message: string): Promise<{ success: boolean; error?: string; usersCount?: number }> {
     try {
-      // Get all user IDs (telegram_id is the primary key)
+      // Get all user IDs (tg_id is the primary key)
       const { data: users, error: usersError } = await supabase
         .from('users')
-        .select('telegram_id');
+        .select('tg_id');
 
       if (usersError) {
         return { success: false, error: `Users error: ${usersError.message}` };
@@ -1434,7 +1434,7 @@ export const api = {
 
       // Create notifications for all users
       const notifications = users.map(user => ({
-        user_id: user.telegram_id,
+        user_id: user.tg_id,
         type: 'SYSTEM',
         title: '📢 Объявление',
         message: message,
