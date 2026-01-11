@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ViewState } from '../types';
 import { initTelegramApp, getTelegramUser, triggerHaptic } from '../services/telegram';
 import { ADMIN_IDS } from '../constants';
@@ -31,7 +31,11 @@ const Layout: React.FC<LayoutProps> = ({
   const isAdmin = ADMIN_IDS.includes(user.id);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [headerBlur, setHeaderBlur] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  const scrollPositions = useRef<Record<string, number>>({});
+  const prevView = useRef<ViewState>(currentView);
 
   // Swipe navigation between tabs
   const currentNavIndex = NAV_ORDER.indexOf(currentView);
@@ -60,12 +64,36 @@ const Layout: React.FC<LayoutProps> = ({
     }
   }, []);
 
-  // Сброс скролла при смене вкладки
+  // Сохранение и восстановление позиции скролла + transition эффект
   useEffect(() => {
+    if (currentView === prevView.current) return;
+    
+    // Сохраняем позицию предыдущей вкладки
     if (mainRef.current) {
-      mainRef.current.scrollTo({ top: 0, behavior: 'instant' });
+      scrollPositions.current[prevView.current] = mainRef.current.scrollTop;
     }
+    
+    // Запускаем transition
+    setIsTransitioning(true);
+    
+    // Восстанавливаем позицию для новой вкладки (или 0 если не было)
+    setTimeout(() => {
+      if (mainRef.current) {
+        const savedPosition = scrollPositions.current[currentView] || 0;
+        mainRef.current.scrollTo({ top: savedPosition, behavior: 'instant' });
+      }
+      setIsTransitioning(false);
+    }, 150);
+    
+    prevView.current = currentView;
   }, [currentView]);
+
+  // Header blur при скролле
+  const handleScroll = useCallback(() => {
+    if (mainRef.current) {
+      setHeaderBlur(mainRef.current.scrollTop > 20);
+    }
+  }, []);
 
   const handleCreateClick = () => {
     triggerHaptic('medium');
@@ -122,8 +150,12 @@ const Layout: React.FC<LayoutProps> = ({
          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/20 rounded-full blur-[80px]"></div>
       </div>
 
-      {/* Header Bar with Notification Bell */}
-      <header className="sticky top-0 z-40 h-14 flex items-center justify-end px-4 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/50">
+      {/* Header Bar with Notification Bell - dynamic blur */}
+      <header className={`sticky top-0 z-40 h-14 flex items-center justify-end px-4 border-b transition-all duration-300 ${
+        headerBlur 
+          ? 'bg-slate-900/95 backdrop-blur-2xl border-slate-700/80 shadow-lg shadow-black/20' 
+          : 'bg-slate-900/80 backdrop-blur-xl border-slate-800/50'
+      }`}>
         <button
           onClick={() => {
             triggerHaptic('light');
@@ -149,9 +181,13 @@ const Layout: React.FC<LayoutProps> = ({
       <main 
         ref={mainRef} 
         className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10"
+        onScroll={handleScroll}
         {...swipeHandlers}
       >
-        {children}
+        {/* Transition overlay */}
+        <div className={`transition-opacity duration-150 ${isTransitioning ? 'opacity-0' : 'opacity-100'}`}>
+          {children}
+        </div>
       </main>
 
       {/* Swipe indicator dots */}
