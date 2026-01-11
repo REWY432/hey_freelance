@@ -367,7 +367,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
     
     try {
       // API call to send broadcast (you need to implement this in supabase.ts)
-      const success = await api.sendBroadcast?.(broadcastMessage);
+      const success = await api.sendBroadcast(broadcastMessage);
       if (success) {
         triggerHaptic('success');
         setBroadcastMessage('');

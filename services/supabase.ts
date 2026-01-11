@@ -1412,5 +1412,59 @@ export const api = {
       console.error('Exception:', e);
       return false;
     }
+  },
+
+  /**
+   * Send broadcast message to all users
+   */
+  async sendBroadcast(message: string): Promise<boolean> {
+    try {
+      // Get all user IDs
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id');
+
+      if (usersError) {
+        if (isTableMissing(usersError)) {
+          console.warn('Users table not found');
+          return false;
+        }
+        console.error('Error fetching users:', usersError);
+        return false;
+      }
+
+      if (!users || users.length === 0) {
+        console.warn('No users to broadcast to');
+        return true;
+      }
+
+      // Create notifications for all users
+      const notifications = users.map(user => ({
+        user_id: user.id,
+        type: 'SYSTEM',
+        title: '📢 Объявление',
+        message: message,
+        is_read: false,
+      }));
+
+      // Insert in batches of 100
+      const batchSize = 100;
+      for (let i = 0; i < notifications.length; i += batchSize) {
+        const batch = notifications.slice(i, i + batchSize);
+        const { error } = await supabase
+          .from('notifications')
+          .insert(batch);
+
+        if (error && !isTableMissing(error)) {
+          console.error('Error inserting broadcast notifications:', error);
+        }
+      }
+
+      console.log(`Broadcast sent to ${users.length} users`);
+      return true;
+    } catch (e) {
+      console.error('Broadcast exception:', e);
+      return false;
+    }
   }
 };
