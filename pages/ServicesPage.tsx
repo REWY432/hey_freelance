@@ -286,8 +286,11 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
             </div>
 
             {/* Categories with counts */}
-            <div className="relative scroll-gradient-right">
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide hide-scrollbar">
+            <div className="relative">
+              {/* Gradient fade right */}
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-900 to-transparent z-10 pointer-events-none" />
+              
+              <div className="flex gap-2 overflow-x-auto pb-2 hide-scrollbar pr-6">
                 {Object.entries(CATEGORY_CONFIG).map(([key, config]) => {
                   const cat = key as ServiceCategory;
                   const isActive = activeCategory === cat;
@@ -299,7 +302,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
                         triggerHaptic('selection');
                         setActiveCategory(cat);
                       }}
-                      className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all active:scale-95 ${
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all active:scale-95 ${
                         isActive 
                           ? 'bg-white text-slate-900 border-white' 
                           : config.colorClass

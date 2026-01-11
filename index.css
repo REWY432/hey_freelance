@@ -407,36 +407,7 @@ textarea:focus-visible {
 .category-copywriting { --category-color: #10b981; --category-bg: rgba(16, 185, 129, 0.15); }
 .category-other { --category-color: #64748b; --category-bg: rgba(100, 116, 139, 0.15); }
 
-/* === GRADIENT SCROLL INDICATORS === */
-.scroll-gradient-left {
-  position: relative;
-}
-.scroll-gradient-left::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 24px;
-  background: linear-gradient(to right, rgb(15, 23, 42), transparent);
-  z-index: 10;
-  pointer-events: none;
-}
-
-.scroll-gradient-right {
-  position: relative;
-}
-.scroll-gradient-right::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 24px;
-  background: linear-gradient(to left, rgb(15, 23, 42), transparent);
-  z-index: 10;
-  pointer-events: none;
-}
+/* Gradient scroll indicators are now inline divs for better touch compatibility */
 
 /* === STAGGERED ANIMATION === */
 .stagger-item {
