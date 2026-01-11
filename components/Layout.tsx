@@ -88,25 +88,28 @@ const Layout: React.FC<LayoutProps> = ({
          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-900/20 rounded-full blur-[80px]"></div>
       </div>
 
-      {/* Notification Bell - Fixed in top right */}
-      <button
-        onClick={() => {
-          triggerHaptic('light');
-          setShowNotifications(true);
-        }}
-        className="fixed top-4 right-4 z-40 p-3 bg-slate-800/90 backdrop-blur-xl rounded-2xl 
-                 border border-slate-700/50 shadow-lg hover:bg-slate-700 transition-all
-                 active:scale-95"
-      >
-        <Bell size={20} className="text-slate-300" />
-        {unreadNotifications > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 
-                         bg-blue-500 rounded-full text-[11px] font-bold text-white
-                         flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.5)]">
-            {unreadNotifications > 99 ? '99+' : unreadNotifications}
-          </span>
-        )}
-      </button>
+      {/* Header Bar with Notification Bell */}
+      <header className="sticky top-0 z-40 h-14 flex items-center justify-end px-4 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/50">
+        <button
+          onClick={() => {
+            triggerHaptic('light');
+            setShowNotifications(true);
+          }}
+          className="relative p-3 bg-slate-800/90 hover:bg-slate-700 rounded-2xl 
+                   border border-slate-700/50 shadow-lg transition-all
+                   active:scale-95 touch-target"
+        >
+          <Bell size={20} className="text-slate-300" />
+          {unreadNotifications > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 
+                           bg-blue-500 rounded-full text-[11px] font-bold text-white
+                           flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.5)]
+                           animate-bounce-in">
+              {unreadNotifications > 99 ? '99+' : unreadNotifications}
+            </span>
+          )}
+        </button>
+      </header>
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10">

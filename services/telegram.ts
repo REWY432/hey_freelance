@@ -92,6 +92,34 @@ export const getThemeParams = () => {
   return window.Telegram?.WebApp?.themeParams || {};
 };
 
+// Синхронизация CSS переменных с темой Telegram
+export const syncTelegramTheme = () => {
+  const theme = getThemeParams();
+  const root = document.documentElement;
+  
+  if (theme.bg_color) {
+    root.style.setProperty('--tg-bg', theme.bg_color);
+  }
+  if (theme.text_color) {
+    root.style.setProperty('--tg-text', theme.text_color);
+  }
+  if (theme.hint_color) {
+    root.style.setProperty('--tg-hint', theme.hint_color);
+  }
+  if (theme.link_color) {
+    root.style.setProperty('--tg-link', theme.link_color);
+  }
+  if (theme.button_color) {
+    root.style.setProperty('--tg-button', theme.button_color);
+  }
+  if (theme.button_text_color) {
+    root.style.setProperty('--tg-button-text', theme.button_text_color);
+  }
+  if (theme.secondary_bg_color) {
+    root.style.setProperty('--tg-secondary-bg', theme.secondary_bg_color);
+  }
+};
+
 export const BOT_USERNAME = 'hey_birazhabot';
 
 export const initTelegramApp = () => {
@@ -99,6 +127,8 @@ export const initTelegramApp = () => {
     window.Telegram.WebApp.ready();
     try {
         window.Telegram.WebApp.expand();
+        // Синхронизируем тему
+        syncTelegramTheme();
     } catch (e) {
         console.warn('Failed to expand WebApp', e);
     }

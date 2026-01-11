@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Job, JobCategory, JobStatus } from '../types';
 import { openTelegramChat, triggerHaptic, getTelegramUser, shareContent, buildReferralLink } from '../services/telegram';
 import { api } from '../services/supabase';
@@ -11,13 +11,42 @@ import EmptyState from '../components/EmptyState';
 import PullToRefresh from '../components/PullToRefresh';
 import { Send, Clock, Briefcase, Heart, Filter, Pin, Flame, ChevronDown, ChevronUp, X, Check, Search, Share2, Loader2 } from 'lucide-react';
 
+// Хук для debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// Цвета категорий
+const CATEGORY_COLORS: Record<JobCategory, string> = {
+  [JobCategory.ALL]: 'bg-slate-800 text-slate-400 border-slate-700',
+  [JobCategory.DEVELOPMENT]: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  [JobCategory.DESIGN]: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  [JobCategory.MARKETING]: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
+  [JobCategory.COPYWRITING]: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  [JobCategory.OTHER]: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+};
+
 interface JobsPageProps {
   jobs: Job[];
   isLoading?: boolean;
+  hasError?: boolean;
+  onRetry?: () => void;
   onNotify?: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = false, onNotify }) => {
+const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = false, hasError = false, onRetry, onNotify }) => {
   const user = getTelegramUser();
   
   // === LIVE UPDATES ===
@@ -37,6 +66,7 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
   // === UI STATE ===
   const [activeCategory, setActiveCategory] = useState<JobCategory>(JobCategory.ALL);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [bookmarks, setBookmarks] = useState<string[]>([]);
   const [expandedJobs, setExpandedJobs] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(true);
@@ -179,18 +209,41 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
     }
   };
 
-  // === FILTERING ===
-  const filteredJobs = jobs.filter(job => {
-    if (job.status !== JobStatus.OPEN) return false;
-    if (activeCategory !== JobCategory.ALL && job.category !== activeCategory) return false;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesTitle = job.title.toLowerCase().includes(query);
-      const matchesDesc = job.description.toLowerCase().includes(query);
-      if (!matchesTitle && !matchesDesc) return false;
-    }
-    return true;
-  });
+  // === FILTERING with debounced search ===
+  const filteredJobs = useMemo(() => {
+    return jobs.filter(job => {
+      if (job.status !== JobStatus.OPEN) return false;
+      if (activeCategory !== JobCategory.ALL && job.category !== activeCategory) return false;
+      if (debouncedSearch) {
+        const query = debouncedSearch.toLowerCase();
+        const matchesTitle = job.title.toLowerCase().includes(query);
+        const matchesDesc = job.description.toLowerCase().includes(query);
+        if (!matchesTitle && !matchesDesc) return false;
+      }
+      return true;
+    });
+  }, [jobs, activeCategory, debouncedSearch]);
+
+  // Подсчёт по категориям для filter chips
+  const categoryCounts = useMemo(() => {
+    const counts: Record<JobCategory, number> = {
+      [JobCategory.ALL]: 0,
+      [JobCategory.DEVELOPMENT]: 0,
+      [JobCategory.DESIGN]: 0,
+      [JobCategory.MARKETING]: 0,
+      [JobCategory.COPYWRITING]: 0,
+      [JobCategory.OTHER]: 0,
+    };
+    
+    jobs.filter(j => j.status === JobStatus.OPEN).forEach(job => {
+      counts[JobCategory.ALL]++;
+      if (job.category in counts) {
+        counts[job.category]++;
+      }
+    });
+    
+    return counts;
+  }, [jobs]);
 
   return (
     <PullToRefresh onRefresh={handlePullRefresh}>
@@ -243,43 +296,57 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
               />
             </div>
 
-            {/* Categories */}
-            <div className="flex overflow-x-auto gap-2 pb-3 hide-scrollbar">
-              {Object.keys(CATEGORY_LABELS).map((catKey) => {
-                const cat = catKey as JobCategory;
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      triggerHaptic('selection');
-                      setActiveCategory(cat);
-                    }}
-                    className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all active:scale-95 ${
-                      isActive 
-                        ? 'bg-white text-slate-900 border-white' 
-                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
-                    }`}
-                  >
-                    {CATEGORY_LABELS[cat]}
-                  </button>
-                );
-              })}
+            {/* Categories with counts and gradient indicators */}
+            <div className="relative scroll-gradient-right">
+              <div className="flex overflow-x-auto gap-2 pb-3 hide-scrollbar">
+                {Object.keys(CATEGORY_LABELS).map((catKey) => {
+                  const cat = catKey as JobCategory;
+                  const isActive = activeCategory === cat;
+                  const count = categoryCounts[cat];
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        triggerHaptic('selection');
+                        setActiveCategory(cat);
+                      }}
+                      className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all active:scale-95 ${
+                        isActive 
+                          ? 'bg-white text-slate-900 border-white' 
+                          : CATEGORY_COLORS[cat]
+                      }`}
+                    >
+                      {CATEGORY_LABELS[cat]}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                        isActive ? 'bg-slate-900/20' : 'bg-white/10'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
         
         {/* === JOBS LIST === */}
         <div className="px-4 pb-20 space-y-4">
-          {isLoading ? (
+          {hasError ? (
+            <EmptyState 
+              type="error" 
+              errorMessage="Не удалось загрузить заказы"
+              onRetry={onRetry || refetch}
+            />
+          ) : isLoading ? (
             <JobListSkeleton count={4} />
           ) : filteredJobs.length === 0 ? (
             <EmptyState 
-              type={searchQuery ? 'no-results' : 'no-jobs'} 
-              searchQuery={searchQuery}
+              type={debouncedSearch ? 'no-results' : 'no-jobs'} 
+              searchQuery={debouncedSearch}
             />
           ) : (
-            filteredJobs.map((job) => {
+            filteredJobs.map((job, index) => {
               const isBookmarked = bookmarks.includes(job.id);
               const isExpanded = expandedJobs.includes(job.id);
               const isApplied = appliedJobs.includes(job.id);
@@ -292,7 +359,8 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
               return (
                 <div 
                   key={job.id} 
-                  className={`group relative overflow-hidden rounded-2xl p-4 border backdrop-blur-sm transition-all ${containerClasses}`}
+                  className={`group relative overflow-hidden rounded-2xl p-4 border backdrop-blur-sm transition-all stagger-item ${containerClasses}`}
+                  style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
                 >
                   {isHighlighted && (
                     <div className="absolute top-0 right-0 w-24 h-24 bg-yellow-500/10 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none" />
@@ -321,22 +389,27 @@ const JobsPage: React.FC<JobsPageProps> = ({ jobs: initialJobs, isLoading = fals
                       </h2>
                     </div>
                     
-                    {/* Actions */}
-                    <div className="absolute top-3 right-3 flex gap-1 z-10">
+                    {/* Actions - with larger touch targets */}
+                    <div className="absolute top-2 right-2 flex gap-1 z-10">
                       <button 
                         onClick={(e) => handleShare(job, e)}
-                        className="p-2 text-slate-500 hover:text-blue-400 transition-colors bg-slate-800/50 rounded-full hover:bg-slate-700 active:scale-90"
+                        className="p-3 text-slate-500 hover:text-blue-400 transition-colors bg-slate-800/50 rounded-full hover:bg-slate-700 active:scale-90 touch-target"
                       >
                         <Share2 size={18} />
                       </button>
                       <button 
-                        onClick={(e) => toggleBookmark(job.id, e)}
-                        className="p-2 text-slate-500 hover:text-rose-500 transition-colors bg-slate-800/50 rounded-full hover:bg-slate-700 active:scale-90"
+                        onClick={(e) => {
+                          toggleBookmark(job.id, e);
+                          if (!isBookmarked) triggerHaptic('success');
+                        }}
+                        className={`p-3 transition-colors bg-slate-800/50 rounded-full hover:bg-slate-700 active:scale-90 touch-target ${
+                          isBookmarked ? 'text-rose-500' : 'text-slate-500 hover:text-rose-500'
+                        }`}
                       >
                         <Heart 
                           size={18} 
                           fill={isBookmarked ? "currentColor" : "none"} 
-                          className={isBookmarked ? "text-rose-500" : ""} 
+                          className={isBookmarked ? "animate-heart-beat" : ""} 
                         />
                       </button>
                     </div>

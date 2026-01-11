@@ -439,9 +439,25 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       {activeTab === 'jobs' && (
         <div className="px-5 space-y-4 animate-in slide-in-from-right-4 fade-in duration-300">
           {myJobs.length === 0 ? (
-            <div className="text-center text-slate-500 py-10">
-              <MessageSquare size={48} className="mx-auto opacity-20 mb-4" />
-              <p>У вас пока нет заказов</p>
+            <div className="flex flex-col items-center justify-center py-12 px-6 animate-in fade-in duration-300">
+              <div className="relative mb-4">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 blur-2xl opacity-20 rounded-full scale-150" />
+                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 
+                              flex items-center justify-center shadow-lg">
+                  <MessageSquare size={28} className="text-white" />
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">У вас пока нет заказов</h3>
+              <p className="text-sm text-slate-400 text-center max-w-[200px] mb-4">
+                Создайте первый заказ, чтобы найти исполнителя
+              </p>
+              <button
+                onClick={() => window.Telegram?.WebApp?.openTelegramLink?.('https://t.me/hey_birazhabot')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold 
+                         rounded-xl transition-all active:scale-95"
+              >
+                Создать заказ
+              </button>
             </div>
           ) : (
             myJobs.map(job => (
@@ -519,10 +535,26 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           </button>
 
           {myServices.length === 0 ? (
-            <div className="text-center text-slate-500 py-10">
-              <Package size={48} className="mx-auto opacity-20 mb-4" />
-              <p>У вас пока нет услуг</p>
-              <p className="text-xs mt-2">Создайте первую услугу, чтобы получать заказы</p>
+            <div className="flex flex-col items-center justify-center py-12 px-6 animate-in fade-in duration-300">
+              <div className="relative mb-4">
+                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-teal-600 blur-2xl opacity-20 rounded-full scale-150" />
+                <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 
+                              flex items-center justify-center shadow-lg animate-float">
+                  <Package size={28} className="text-white" />
+                </div>
+              </div>
+              <h3 className="text-lg font-bold text-white mb-1">У вас пока нет услуг</h3>
+              <p className="text-sm text-slate-400 text-center max-w-[220px] mb-4">
+                Создайте услугу и получайте заявки от клиентов
+              </p>
+              <button
+                onClick={onCreateService}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold 
+                         rounded-xl transition-all active:scale-95 flex items-center gap-2"
+              >
+                <Plus size={16} />
+                Создать услугу
+              </button>
             </div>
           ) : (
             myServices.map(service => (

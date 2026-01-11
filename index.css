@@ -1,8 +1,26 @@
 /* index.css - Additional styles for TeleLance */
 
-/* Smooth scrolling */
+/* Telegram theme CSS variables */
+:root {
+  --tg-bg: #0f172a;
+  --tg-text: #f1f5f9;
+  --tg-hint: #64748b;
+  --tg-link: #3b82f6;
+  --tg-button: #3b82f6;
+  --tg-button-text: #ffffff;
+  --tg-secondary-bg: #1e293b;
+}
+
+/* Smooth scrolling + iOS overscroll fix */
 html {
   scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+}
+
+body {
+  overscroll-behavior-y: contain;
+  background-color: var(--tg-bg);
+  color: var(--tg-text);
 }
 
 /* Custom scrollbar */
@@ -380,4 +398,89 @@ textarea:focus-visible {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* === CATEGORY COLORS === */
+.category-development { --category-color: #3b82f6; --category-bg: rgba(59, 130, 246, 0.15); }
+.category-design { --category-color: #a855f7; --category-bg: rgba(168, 85, 247, 0.15); }
+.category-marketing { --category-color: #f97316; --category-bg: rgba(249, 115, 22, 0.15); }
+.category-copywriting { --category-color: #10b981; --category-bg: rgba(16, 185, 129, 0.15); }
+.category-other { --category-color: #64748b; --category-bg: rgba(100, 116, 139, 0.15); }
+
+/* === GRADIENT SCROLL INDICATORS === */
+.scroll-gradient-left {
+  position: relative;
+}
+.scroll-gradient-left::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(to right, rgb(15, 23, 42), transparent);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.scroll-gradient-right {
+  position: relative;
+}
+.scroll-gradient-right::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 24px;
+  background: linear-gradient(to left, rgb(15, 23, 42), transparent);
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* === STAGGERED ANIMATION === */
+.stagger-item {
+  opacity: 0;
+  animation: slide-up-fade 0.4s ease-out forwards;
+}
+
+/* Dynamic stagger delays via CSS custom property */
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 50ms; }
+.stagger-item:nth-child(3) { animation-delay: 100ms; }
+.stagger-item:nth-child(4) { animation-delay: 150ms; }
+.stagger-item:nth-child(5) { animation-delay: 200ms; }
+.stagger-item:nth-child(6) { animation-delay: 250ms; }
+.stagger-item:nth-child(7) { animation-delay: 300ms; }
+.stagger-item:nth-child(8) { animation-delay: 350ms; }
+.stagger-item:nth-child(9) { animation-delay: 400ms; }
+.stagger-item:nth-child(10) { animation-delay: 450ms; }
+
+/* === BOOSTED SERVICE GLOW === */
+@keyframes boosted-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(251, 191, 36, 0.5);
+  }
+}
+
+.boosted-card {
+  animation: boosted-glow 2s ease-in-out infinite;
+  border-color: rgba(251, 191, 36, 0.4) !important;
+}
+
+/* === LARGER TOUCH TARGETS === */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* === DICEBEAR AVATAR FALLBACK === */
+.avatar-placeholder {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }

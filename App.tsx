@@ -20,6 +20,7 @@ import { useOnboarding } from './hooks/useOnboarding';
 
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const [view, setView] = useState<ViewState>(ViewState.JOBS);
   
   // Data
@@ -128,53 +129,55 @@ const App: React.FC = () => {
   }, [deepLink, user.id]);
 
   // Initial Load
-  useEffect(() => {
-    const initApp = async () => {
-      try {
-        await api.ensureUser(user);
+  const initApp = async () => {
+    setHasError(false);
+    try {
+      await api.ensureUser(user);
 
-        const [fetchedJobs, fetchedFreelancers, fetchedProfile] = await Promise.all([
-          api.getJobs(),
-          api.getFreelancers(),
-          api.getMyProfile(user.id)
-        ]);
+      const [fetchedJobs, fetchedFreelancers, fetchedProfile] = await Promise.all([
+        api.getJobs(),
+        api.getFreelancers(),
+        api.getMyProfile(user.id)
+      ]);
 
-        setJobs(fetchedJobs);
-        setFreelancers(fetchedFreelancers);
-        if (fetchedProfile) {
-          setMyProfile(fetchedProfile);
-        }
-
-        // Загружаем услуги
-        const fetchedServices = await api.getServices();
-        setServices(fetchedServices);
-
-        // Загружаем мои услуги
-        if (api.getMyServices) {
-          const fetchedMyServices = await api.getMyServices(user.id);
-          setMyServices(fetchedMyServices);
-        }
-
-        // Для админов загружаем все услуги (включая PENDING)
-        if (ADMIN_IDS.includes(user.id) && api.getAllServices) {
-          const fetchedAllServices = await api.getAllServices();
-          setAllServices(fetchedAllServices);
-        }
-
-        await loadReferralWallet();
-        
-        // Загружаем счётчик непрочитанных уведомлений
-        const unreadCount = await api.getUnreadCount(user.id);
-        setUnreadNotifications(unreadCount);
-
-      } catch (error) {
-        console.error("Initialization failed:", error);
-        showNotify("Ошибка подключения к базе данных", 'error');
-      } finally {
-        setIsLoading(false);
+      setJobs(fetchedJobs);
+      setFreelancers(fetchedFreelancers);
+      if (fetchedProfile) {
+        setMyProfile(fetchedProfile);
       }
-    };
 
+      // Загружаем услуги
+      const fetchedServices = await api.getServices();
+      setServices(fetchedServices);
+
+      // Загружаем мои услуги
+      if (api.getMyServices) {
+        const fetchedMyServices = await api.getMyServices(user.id);
+        setMyServices(fetchedMyServices);
+      }
+
+      // Для админов загружаем все услуги (включая PENDING)
+      if (ADMIN_IDS.includes(user.id) && api.getAllServices) {
+        const fetchedAllServices = await api.getAllServices();
+        setAllServices(fetchedAllServices);
+      }
+
+      await loadReferralWallet();
+      
+      // Загружаем счётчик непрочитанных уведомлений
+      const unreadCount = await api.getUnreadCount(user.id);
+      setUnreadNotifications(unreadCount);
+
+    } catch (error) {
+      console.error("Initialization failed:", error);
+      setHasError(true);
+      showNotify("Ошибка подключения к базе данных", 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     initApp();
   }, []);
 
@@ -409,7 +412,15 @@ const App: React.FC = () => {
             {(() => {
                 switch (view) {
                     case ViewState.JOBS:
-                        return <JobsPage jobs={jobs} onNotify={showNotify} />;
+                        return (
+                          <JobsPage 
+                            jobs={jobs} 
+                            isLoading={isLoading}
+                            hasError={hasError}
+                            onRetry={initApp}
+                            onNotify={showNotify} 
+                          />
+                        );
                     
                     case ViewState.SERVICES:
                         return (

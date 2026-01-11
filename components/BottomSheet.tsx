@@ -27,6 +27,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const sheetRef = useRef<HTMLDivElement>(null);
   const startY = useRef(0);
   const startDragY = useRef(0);
@@ -46,11 +47,34 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isOpen]);
 
+  // Keyboard avoidance для мобильных
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleResize = () => {
+      // Вычисляем насколько клавиатура перекрывает экран
+      const offset = window.innerHeight - vv.height;
+      setKeyboardOffset(Math.max(0, offset));
+    };
+
+    vv.addEventListener('resize', handleResize);
+    vv.addEventListener('scroll', handleResize);
+    
+    return () => {
+      vv.removeEventListener('resize', handleResize);
+      vv.removeEventListener('scroll', handleResize);
+    };
+  }, [isOpen]);
+
   // Сброс состояния при открытии
   useEffect(() => {
     if (isOpen) {
       setDragY(0);
       setIsClosing(false);
+      setKeyboardOffset(0);
     }
   }, [isOpen]);
 
@@ -127,14 +151,15 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         className={`absolute bottom-0 left-0 right-0 bg-slate-800 
                    rounded-t-3xl overflow-hidden shadow-2xl
                    border-t border-slate-700
-                   transition-transform duration-200 ease-out
+                   transition-all duration-200 ease-out
                    ${isDragging ? 'transition-none' : ''}
                    ${isClosing ? 'translate-y-full' : ''}`}
         style={{ 
           maxHeight,
           transform: isClosing 
             ? 'translateY(100%)' 
-            : `translateY(${Math.max(0, dragY)}px)`
+            : `translateY(${Math.max(0, dragY)}px)`,
+          paddingBottom: keyboardOffset > 0 ? `${keyboardOffset}px` : undefined,
         }}
       >
         {/* Handle */}

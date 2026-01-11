@@ -1,7 +1,23 @@
 import React, { useState } from 'react';
-import { Service } from '../types';
-import { Clock, ShoppingBag, Zap, CheckCircle, ChevronRight, Check, Share2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Service, ServiceCategory } from '../types';
+import { Clock, ShoppingBag, Zap, CheckCircle, ChevronRight, Check, Share2, ChevronDown, ChevronUp, Rocket } from 'lucide-react';
 import { triggerHaptic } from '../services/telegram';
+
+// Категории и их цвета
+const CATEGORY_CONFIG: Record<ServiceCategory, { label: string; colorClass: string }> = {
+  [ServiceCategory.ALL]: { label: 'Все', colorClass: 'text-slate-400' },
+  [ServiceCategory.DEVELOPMENT]: { label: 'Разработка', colorClass: 'text-blue-400' },
+  [ServiceCategory.DESIGN]: { label: 'Дизайн', colorClass: 'text-purple-400' },
+  [ServiceCategory.MARKETING]: { label: 'Маркетинг', colorClass: 'text-orange-400' },
+  [ServiceCategory.COPYWRITING]: { label: 'Тексты', colorClass: 'text-emerald-400' },
+  [ServiceCategory.OTHER]: { label: 'Другое', colorClass: 'text-slate-400' },
+};
+
+// Генератор аватара через DiceBear
+const getAvatarUrl = (name: string) => {
+  const seed = encodeURIComponent(name || 'user');
+  return `https://api.dicebear.com/7.x/initials/svg?seed=${seed}&backgroundColor=3b82f6,8b5cf6,10b981,f97316&backgroundType=gradientLinear`;
+};
 
 interface ServiceCardProps {
   service: Service;
@@ -41,21 +57,30 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
     return 'дней';
   };
 
+  const categoryConfig = CATEGORY_CONFIG[service.category as ServiceCategory] || CATEGORY_CONFIG[ServiceCategory.OTHER];
+
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl overflow-hidden 
-                    hover:border-slate-600 transition-all group">
+    <div className={`bg-slate-800/50 border rounded-2xl overflow-hidden 
+                    hover:border-slate-600 transition-all group
+                    ${service.isBoosted ? 'boosted-card border-amber-500/40' : 'border-slate-700/50'}`}>
       
       {/* Верхняя часть */}
       <div className="p-4">
         {/* Категория + Badge */}
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-            {service.category === 'DEVELOPMENT' && 'Разработка'}
-            {service.category === 'DESIGN' && 'Дизайн'}
-            {service.category === 'MARKETING' && 'Маркетинг'}
-            {service.category === 'COPYWRITING' && 'Тексты'}
-            {service.category === 'OTHER' && 'Другое'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${categoryConfig.colorClass}`}>
+              {categoryConfig.label}
+            </span>
+            {service.isBoosted && (
+              <span className="flex items-center gap-1 text-[10px] font-bold 
+                             bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full
+                             border border-amber-500/30">
+                <Rocket size={10} />
+                ТОП
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {service.ordersCount && service.ordersCount > 10 && (
               <span className="flex items-center gap-1 text-[10px] font-medium 
@@ -68,7 +93,7 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
             {onShare && (
               <button 
                 onClick={(e) => { e.stopPropagation(); triggerHaptic('selection'); onShare(service); }}
-                className="p-2 rounded-lg bg-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors"
+                className="p-3 rounded-lg bg-slate-700/60 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors touch-target"
               >
                 <Share2 size={14} />
               </button>
@@ -133,13 +158,15 @@ const ServiceCard: React.FC<ServiceCardProps> = ({
           {/* Исполнитель */}
           <button 
             onClick={handleProfileClick}
-            className="flex items-center gap-3 group/profile"
+            className="flex items-center gap-3 group/profile touch-target"
           >
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 
-                            flex items-center justify-center text-white font-bold text-sm">
-                {service.freelancerName?.[0] || '?'}
-              </div>
+              <img 
+                src={getAvatarUrl(service.freelancerName || 'User')}
+                alt={service.freelancerName}
+                className="w-10 h-10 rounded-full"
+                loading="lazy"
+              />
               {service.isOnline && (
                 <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 
                               bg-emerald-500 rounded-full border-2 border-slate-800" />
@@ -226,19 +253,23 @@ export const ServiceCardCompact: React.FC<ServiceCardProps> = ({
     return price.toLocaleString('ru-RU') + ' ₽';
   };
 
+  const categoryConfig = CATEGORY_CONFIG[service.category as ServiceCategory] || CATEGORY_CONFIG[ServiceCategory.OTHER];
+
   return (
-    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden 
-                    hover:border-slate-600 transition-all">
+    <div className={`bg-slate-800/50 border rounded-xl overflow-hidden 
+                    hover:border-slate-600 transition-all
+                    ${service.isBoosted ? 'boosted-card border-amber-500/40' : 'border-slate-700/50'}`}>
       
       <div className="p-3">
-        {/* Категория */}
-        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">
-          {service.category === 'DEVELOPMENT' && 'Разработка'}
-          {service.category === 'DESIGN' && 'Дизайн'}
-          {service.category === 'MARKETING' && 'Маркетинг'}
-          {service.category === 'COPYWRITING' && 'Тексты'}
-          {service.category === 'OTHER' && 'Другое'}
-        </span>
+        {/* Категория + Boosted */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${categoryConfig.colorClass}`}>
+            {categoryConfig.label}
+          </span>
+          {service.isBoosted && (
+            <Rocket size={10} className="text-amber-400" />
+          )}
+        </div>
 
         {/* Название */}
         <h3 className="text-sm font-semibold text-white leading-snug mt-1 mb-2 line-clamp-2">
@@ -247,10 +278,12 @@ export const ServiceCardCompact: React.FC<ServiceCardProps> = ({
 
         {/* Исполнитель */}
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 
-                        flex items-center justify-center text-white font-bold text-[10px]">
-            {service.freelancerName?.[0] || '?'}
-          </div>
+          <img 
+            src={getAvatarUrl(service.freelancerName || 'User')}
+            alt={service.freelancerName}
+            className="w-6 h-6 rounded-full"
+            loading="lazy"
+          />
           <span className="text-xs text-slate-400 truncate">
             {service.freelancerName || 'Unknown'}
           </span>

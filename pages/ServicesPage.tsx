@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Service, ServiceCategory } from '../types';
 import { triggerHaptic, getTelegramUser, shareContent, buildReferralLink } from '../services/telegram';
 import ServiceCard, { ServiceCardCompact } from '../components/ServiceCard';
@@ -8,20 +8,31 @@ import EmptyState from '../components/EmptyState';
 import PullToRefresh from '../components/PullToRefresh';
 import { Search, LayoutGrid, List, Send, Loader2, MessageSquare, SlidersHorizontal } from 'lucide-react';
 
-// Категории для фильтра
-const CATEGORY_LABELS: Record<ServiceCategory, string> = {
-  [ServiceCategory.ALL]: 'Все',
-  [ServiceCategory.DEVELOPMENT]: 'Разработка',
-  [ServiceCategory.DESIGN]: 'Дизайн',
-  [ServiceCategory.MARKETING]: 'Маркетинг',
-  [ServiceCategory.COPYWRITING]: 'Тексты',
-  [ServiceCategory.OTHER]: 'Другое'
+// Хук для debounce
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+// Категории с цветами
+const CATEGORY_CONFIG: Record<ServiceCategory, { label: string; colorClass: string }> = {
+  [ServiceCategory.ALL]: { label: 'Все', colorClass: 'bg-slate-800 text-slate-400 border-slate-700' },
+  [ServiceCategory.DEVELOPMENT]: { label: 'Разработка', colorClass: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  [ServiceCategory.DESIGN]: { label: 'Дизайн', colorClass: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  [ServiceCategory.MARKETING]: { label: 'Маркетинг', colorClass: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+  [ServiceCategory.COPYWRITING]: { label: 'Тексты', colorClass: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  [ServiceCategory.OTHER]: { label: 'Другое', colorClass: 'bg-slate-500/20 text-slate-400 border-slate-500/30' },
 };
 
 interface ServicesPageProps {
   services: Service[];
   onCreateRequest: (serviceId: string, message: string) => Promise<boolean>;
   isLoading?: boolean;
+  hasError?: boolean;
   onNotify?: (message: string, type: 'success' | 'error' | 'info') => void;
   onRefresh?: () => Promise<void>;
 }
@@ -30,6 +41,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
   services, 
   onCreateRequest,
   isLoading = false,
+  hasError = false,
   onNotify,
   onRefresh
 }) => {
@@ -39,6 +51,7 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [activeCategory, setActiveCategory] = useState<ServiceCategory>(ServiceCategory.ALL);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 300);
   const [sortBy, setSortBy] = useState<'popular' | 'price_asc' | 'price_desc' | 'new'>('popular');
   const [showFilters, setShowFilters] = useState(true);
   const lastScrollY = useRef(0);
@@ -150,41 +163,68 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
     }
   };
 
-  // Filtering & Sorting
-  const filteredServices = services
-    .filter(service => {
-      // Не показываем свои услуги
-      if (service.freelancerId === user.id) return false;
-      
-      // Категория
-      if (activeCategory !== ServiceCategory.ALL && service.category !== activeCategory) {
-        return false;
-      }
-      
-      // Поиск
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesTitle = service.title.toLowerCase().includes(query);
-        const matchesDesc = service.description.toLowerCase().includes(query);
-        if (!matchesTitle && !matchesDesc) return false;
-      }
-      
-      return true;
-    })
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'popular':
-          return (b.ordersCount || 0) - (a.ordersCount || 0);
-        case 'price_asc':
-          return a.price - b.price;
-        case 'price_desc':
-          return b.price - a.price;
-        case 'new':
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        default:
-          return 0;
+  // Filtering & Sorting with debounced search
+  const filteredServices = useMemo(() => {
+    return services
+      .filter(service => {
+        // Не показываем свои услуги
+        if (service.freelancerId === user.id) return false;
+        
+        // Категория
+        if (activeCategory !== ServiceCategory.ALL && service.category !== activeCategory) {
+          return false;
+        }
+        
+        // Поиск
+        if (debouncedSearch) {
+          const query = debouncedSearch.toLowerCase();
+          const matchesTitle = service.title.toLowerCase().includes(query);
+          const matchesDesc = service.description.toLowerCase().includes(query);
+          if (!matchesTitle && !matchesDesc) return false;
+        }
+        
+        return true;
+      })
+      .sort((a, b) => {
+        // Boosted услуги всегда первые
+        if (a.isBoosted && !b.isBoosted) return -1;
+        if (!a.isBoosted && b.isBoosted) return 1;
+        
+        switch (sortBy) {
+          case 'popular':
+            return (b.ordersCount || 0) - (a.ordersCount || 0);
+          case 'price_asc':
+            return a.price - b.price;
+          case 'price_desc':
+            return b.price - a.price;
+          case 'new':
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          default:
+            return 0;
+        }
+      });
+  }, [services, activeCategory, debouncedSearch, sortBy, user.id]);
+
+  // Подсчёт по категориям
+  const categoryCounts = useMemo(() => {
+    const counts: Record<ServiceCategory, number> = {
+      [ServiceCategory.ALL]: 0,
+      [ServiceCategory.DEVELOPMENT]: 0,
+      [ServiceCategory.DESIGN]: 0,
+      [ServiceCategory.MARKETING]: 0,
+      [ServiceCategory.COPYWRITING]: 0,
+      [ServiceCategory.OTHER]: 0,
+    };
+    
+    services.filter(s => s.freelancerId !== user.id).forEach(service => {
+      counts[ServiceCategory.ALL]++;
+      if (service.category in counts) {
+        counts[service.category as ServiceCategory]++;
       }
     });
+    
+    return counts;
+  }, [services, user.id]);
 
   return (
     <PullToRefresh onRefresh={handlePullRefresh}>
@@ -245,28 +285,36 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
               />
             </div>
 
-            {/* Categories */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {Object.entries(CATEGORY_LABELS).map(([key, label]) => {
-                const cat = key as ServiceCategory;
-                const isActive = activeCategory === cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => {
-                      triggerHaptic('selection');
-                      setActiveCategory(cat);
-                    }}
-                    className={`px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all active:scale-95 ${
-                      isActive 
-                        ? 'bg-white text-slate-900 border-white' 
-                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:border-slate-600'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
+            {/* Categories with counts */}
+            <div className="relative scroll-gradient-right">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide hide-scrollbar">
+                {Object.entries(CATEGORY_CONFIG).map(([key, config]) => {
+                  const cat = key as ServiceCategory;
+                  const isActive = activeCategory === cat;
+                  const count = categoryCounts[cat];
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => {
+                        triggerHaptic('selection');
+                        setActiveCategory(cat);
+                      }}
+                      className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium whitespace-nowrap border transition-all active:scale-95 ${
+                        isActive 
+                          ? 'bg-white text-slate-900 border-white' 
+                          : config.colorClass
+                      }`}
+                    >
+                      {config.label}
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                        isActive ? 'bg-slate-900/20' : 'bg-white/10'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Sort */}
@@ -292,37 +340,45 @@ const ServicesPage: React.FC<ServicesPageProps> = ({
 
         {/* Services List */}
         <div className="p-4">
-          {isLoading ? (
+          {hasError ? (
+            <EmptyState 
+              type="error" 
+              errorMessage="Не удалось загрузить услуги"
+              onRetry={onRefresh}
+            />
+          ) : isLoading ? (
             viewMode === 'list' 
               ? <ServiceListSkeleton count={3} />
               : <ServiceGridSkeleton count={4} />
           ) : filteredServices.length === 0 ? (
             <EmptyState 
-              type={searchQuery ? 'no-results' : 'no-services'} 
-              searchQuery={searchQuery}
+              type={debouncedSearch ? 'no-results' : 'no-services'} 
+              searchQuery={debouncedSearch}
             />
           ) : viewMode === 'list' ? (
             <div className="space-y-4">
-              {filteredServices.map(service => (
-                <ServiceCard
-                  key={service.id}
-                  service={service}
-                  onOrder={handleOrder}
-                  onShare={handleShareService}
-                  isRequested={requestedServices.includes(service.id)}
-                />
+              {filteredServices.map((service, index) => (
+                <div key={service.id} className="stagger-item" style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}>
+                  <ServiceCard
+                    service={service}
+                    onOrder={handleOrder}
+                    onShare={handleShareService}
+                    isRequested={requestedServices.includes(service.id)}
+                  />
+                </div>
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {filteredServices.map(service => (
-                <ServiceCardCompact
-                  key={service.id}
-                  service={service}
-                  onOrder={handleOrder}
-                  onShare={handleShareService}
-                  isRequested={requestedServices.includes(service.id)}
-                />
+              {filteredServices.map((service, index) => (
+                <div key={service.id} className="stagger-item" style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}>
+                  <ServiceCardCompact
+                    service={service}
+                    onOrder={handleOrder}
+                    onShare={handleShareService}
+                    isRequested={requestedServices.includes(service.id)}
+                  />
+                </div>
               ))}
             </div>
           )}

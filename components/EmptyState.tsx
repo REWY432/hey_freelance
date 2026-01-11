@@ -1,9 +1,11 @@
 import React from 'react';
-import { Briefcase, Search, Package, FileText, Inbox, Sparkles } from 'lucide-react';
+import { Briefcase, Search, Package, FileText, Inbox, Sparkles, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface EmptyStateProps {
-  type: 'no-jobs' | 'no-services' | 'no-results' | 'no-proposals' | 'no-my-jobs' | 'no-my-services';
+  type: 'no-jobs' | 'no-services' | 'no-results' | 'no-proposals' | 'no-my-jobs' | 'no-my-services' | 'error';
   searchQuery?: string;
+  onRetry?: () => void;
+  errorMessage?: string;
 }
 
 const configs = {
@@ -43,11 +45,16 @@ const configs = {
     subtitle: 'Создайте услугу и получайте заявки от клиентов',
     gradient: 'from-emerald-500 to-cyan-500',
   },
+  'error': {
+    icon: AlertCircle,
+    title: 'Что-то пошло не так',
+    subtitle: 'Не удалось загрузить данные',
+    gradient: 'from-rose-500 to-red-600',
+  },
 };
 
-const EmptyState: React.FC<EmptyStateProps> = ({ type, searchQuery }) => {
+const EmptyState: React.FC<EmptyStateProps> = ({ type, searchQuery, onRetry, errorMessage }) => {
   const config = configs[type] || configs['no-results'];
-  const Icon = config.icon;
 
   // Если есть searchQuery, показываем "не найдено"
   const displayConfig = searchQuery ? configs['no-results'] : config;
@@ -65,7 +72,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ type, searchQuery }) => {
         {/* Icon box */}
         <div 
           className={`relative w-20 h-20 rounded-2xl bg-gradient-to-br ${displayConfig.gradient} 
-                      flex items-center justify-center shadow-lg animate-float`}
+                      flex items-center justify-center shadow-lg ${type === 'error' ? 'animate-shake' : 'animate-float'}`}
         >
           <DisplayIcon size={36} className="text-white" />
         </div>
@@ -81,16 +88,33 @@ const EmptyState: React.FC<EmptyStateProps> = ({ type, searchQuery }) => {
       <h3 className="text-lg font-bold text-white mb-2 text-center">
         {displayConfig.title}
       </h3>
-      <p className="text-sm text-slate-400 text-center max-w-[200px]">
-        {searchQuery ? `По запросу "${searchQuery}" ничего не найдено` : displayConfig.subtitle}
+      <p className="text-sm text-slate-400 text-center max-w-[240px]">
+        {searchQuery 
+          ? `По запросу "${searchQuery}" ничего не найдено` 
+          : errorMessage || displayConfig.subtitle}
       </p>
 
+      {/* Retry button for errors */}
+      {type === 'error' && onRetry && (
+        <button
+          onClick={onRetry}
+          className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 
+                     text-white font-bold text-sm rounded-xl transition-all active:scale-95
+                     shadow-lg shadow-rose-600/20"
+        >
+          <RefreshCw size={16} />
+          Повторить
+        </button>
+      )}
+
       {/* Decorative line */}
-      <div className="mt-6 flex items-center gap-2">
-        <div className="w-8 h-0.5 bg-slate-700 rounded" />
-        <div className="w-2 h-2 bg-slate-700 rounded-full" />
-        <div className="w-8 h-0.5 bg-slate-700 rounded" />
-      </div>
+      {type !== 'error' && (
+        <div className="mt-6 flex items-center gap-2">
+          <div className="w-8 h-0.5 bg-slate-700 rounded" />
+          <div className="w-2 h-2 bg-slate-700 rounded-full" />
+          <div className="w-8 h-0.5 bg-slate-700 rounded" />
+        </div>
+      )}
     </div>
   );
 };
