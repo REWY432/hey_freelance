@@ -226,6 +226,9 @@ const App: React.FC = () => {
     triggerHaptic('light');
     setView(newView);
     
+    // Сброс скролла при смене вкладки
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    
     // Загружаем услуги при переходе на вкладку
     if (newView === ViewState.SERVICES && services.length === 0) {
         api.getServices().then(setServices).catch(console.error);

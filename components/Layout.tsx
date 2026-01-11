@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ViewState } from '../types';
 import { initTelegramApp, getTelegramUser, triggerHaptic } from '../services/telegram';
 import { ADMIN_IDS } from '../constants';
@@ -24,6 +24,7 @@ const Layout: React.FC<LayoutProps> = ({
   const isAdmin = ADMIN_IDS.includes(user.id);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     initTelegramApp();
@@ -32,6 +33,13 @@ const Layout: React.FC<LayoutProps> = ({
       window.Telegram.WebApp.setBackgroundColor('#0f172a');
     }
   }, []);
+
+  // Сброс скролла при смене вкладки
+  useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [currentView]);
 
   const handleCreateClick = () => {
     triggerHaptic('medium');
@@ -112,7 +120,7 @@ const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10">
+      <main ref={mainRef} className="flex-1 overflow-y-auto pb-20 relative custom-scrollbar z-10">
         {children}
       </main>
 
