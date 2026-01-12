@@ -153,15 +153,54 @@ export interface AppNotification {
 }
 
 // ==========================================
+// ПАРТНЁРСКИЕ КАНАЛЫ (White-label)
+// ==========================================
+
+export enum ChannelJobStatus {
+  PENDING = 'pending',
+  PUBLISHED = 'published',
+  DELETED = 'deleted'
+}
+
+export interface Channel {
+  id: string;
+  channelId: number;         // Telegram channel ID
+  channelUsername?: string;  // @username
+  channelTitle: string;      // Название из TG
+  ownerId: number;
+  categories: JobCategory[]; // Фильтр категорий
+  minBudget: number;         // Мин. бюджет (0 = все)
+  isActive: boolean;
+  subscribersCount: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ChannelJob {
+  id: string;
+  jobId: string;
+  channelId: string;
+  telegramMessageId?: number;
+  status: ChannelJobStatus;
+  publishedAt?: string;
+  createdAt: string;
+  // Joined data
+  channel?: Channel;
+  job?: Job;
+}
+
+// ==========================================
 // NAVIGATION
 // ==========================================
 
 export enum ViewState {
   JOBS = 'JOBS',
-  SERVICES = 'SERVICES',      // Новая вкладка!
+  SERVICES = 'SERVICES',
   CREATE_JOB = 'CREATE_JOB',
-  CREATE_SERVICE = 'CREATE_SERVICE',  // Создание услуги
+  CREATE_SERVICE = 'CREATE_SERVICE',
   FREELANCERS = 'FREELANCERS',
   PROFILE = 'PROFILE',
-  ADMIN = 'ADMIN'
+  ADMIN = 'ADMIN',
+  CHANNEL_CONNECT = 'CHANNEL_CONNECT',     // Подключение канала
+  CHANNEL_DASHBOARD = 'CHANNEL_DASHBOARD'  // Статистика канала
 }

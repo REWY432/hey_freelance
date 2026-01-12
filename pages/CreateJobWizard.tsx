@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getTelegramUser, triggerHaptic, setCloudData, getCloudData, openTelegramChat } from '../services/telegram';
 import { api } from '../services/supabase';
-import { Job, JobCategory } from '../types';
+import { Job, JobCategory, Channel } from '../types';
 import { CATEGORY_LABELS, PROMOTION_PRICES, PAYMENT_DETAILS, ADMIN_USERNAME, DONATE_STREAM } from '../constants';
 import { 
   AlertCircle, Star, Pin, Zap, Flame, Check, Copy, CreditCard, Send, 
   ChevronRight, ChevronLeft, Sparkles, FileText, Wallet, Rocket,
-  CheckCircle2, Circle, Loader2
+  CheckCircle2, Circle, Loader2, Radio, Users, Hash
 } from 'lucide-react';
 
 interface CreateJobWizardProps {
@@ -21,6 +21,7 @@ const STEPS = [
   { id: 1, title: 'Основное', subtitle: 'Название и категория', icon: FileText },
   { id: 2, title: 'Детали', subtitle: 'Опишите задачу', icon: Sparkles },
   { id: 3, title: 'Бюджет', subtitle: 'Оплата и продвижение', icon: Wallet },
+  { id: 4, title: 'Каналы', subtitle: 'Где опубликовать', icon: Radio },
 ];
 
 const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCancel, referralBonus = 0, onUseReferralBonus }) => {
@@ -55,6 +56,11 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
   const [createdJobData, setCreatedJobData] = useState<{id: string, title: string, price: number} | null>(null);
   const [messageCopied, setMessageCopied] = useState(false);
 
+  // Channels
+  const [availableChannels, setAvailableChannels] = useState<Channel[]>([]);
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+
   // Calculate Total Price
   const highlightIsFree = promotions.highlight && referralBonus > 0;
   const totalPrice = 
@@ -69,6 +75,7 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
         if (data.formData) setFormData(data.formData);
         if (data.promotions) setPromotions(data.promotions);
         if (data.currentStep) setCurrentStep(data.currentStep);
+        if (data.selectedChannelIds) setSelectedChannelIds(data.selectedChannelIds);
       }
     });
   }, []);
@@ -76,10 +83,44 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
   // Auto-save draft
   useEffect(() => {
     const timeout = setTimeout(() => {
-      setCloudData('job_draft_v3', { formData, promotions, currentStep });
+      setCloudData('job_draft_v3', { formData, promotions, currentStep, selectedChannelIds });
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [formData, promotions, currentStep]);
+  }, [formData, promotions, currentStep, selectedChannelIds]);
+
+  // Load channels when reaching step 4
+  useEffect(() => {
+    if (currentStep === 4 && availableChannels.length === 0 && !channelsLoading) {
+      loadAvailableChannels();
+    }
+  }, [currentStep]);
+
+  const loadAvailableChannels = async () => {
+    setChannelsLoading(true);
+    try {
+      const budgetNum = formData.budget ? parseInt(formData.budget.replace(/\s/g, ''), 10) : 0;
+      const channels = await api.getAvailableChannels(formData.category, budgetNum);
+      setAvailableChannels(channels);
+    } catch (e) {
+      console.error('Failed to load channels:', e);
+    } finally {
+      setChannelsLoading(false);
+    }
+  };
+
+  const toggleChannel = (channelId: string) => {
+    triggerHaptic('selection');
+    setSelectedChannelIds(prev => {
+      if (prev.includes(channelId)) {
+        return prev.filter(id => id !== channelId);
+      }
+      return [...prev, channelId];
+    });
+  };
+
+  const totalReach = availableChannels
+    .filter(ch => selectedChannelIds.includes(ch.id))
+    .reduce((sum, ch) => sum + ch.subscribersCount, 0);
 
   // Telegram Buttons
   useEffect(() => {
@@ -169,6 +210,8 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
         return formData.description.length >= 20;
       case 3:
         return true; // Budget is optional
+      case 4:
+        return true; // Channel selection is optional
       default:
         return false;
     }
@@ -236,6 +279,11 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
         isHighlighted: promotions.highlight,
         isUrgent: promotions.urgent
       });
+
+      // Publish to selected channels
+      if (selectedChannelIds.length > 0) {
+        await api.publishJobToChannels(newJob.id, selectedChannelIds);
+      }
 
       // Clear draft
       setCloudData('job_draft_v3', null);
@@ -945,6 +993,102 @@ const CreateJobWizard: React.FC<CreateJobWizardProps> = ({ onJobCreated, onCance
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Step 4: Channel Selection */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-4 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <Radio className="text-purple-400" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-white">Где опубликовать?</h2>
+                    <p className="text-xs text-slate-400">Выберите каналы для публикации заказа</p>
+                  </div>
+                </div>
+              </div>
+
+              {channelsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="animate-spin text-purple-400" size={32} />
+                </div>
+              ) : availableChannels.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Radio className="text-slate-500" size={28} />
+                  </div>
+                  <h3 className="font-bold text-white mb-2">Нет доступных каналов</h3>
+                  <p className="text-sm text-slate-400">
+                    Заказ будет опубликован в основном канале
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Reach Summary */}
+                  {selectedChannelIds.length > 0 && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users size={18} className="text-emerald-400" />
+                        <span className="text-sm text-emerald-400 font-medium">Охват</span>
+                      </div>
+                      <span className="text-lg font-bold text-white">
+                        ~{totalReach.toLocaleString()} чел.
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Channel List */}
+                  <div className="space-y-3">
+                    {availableChannels.map((channel) => {
+                      const isSelected = selectedChannelIds.includes(channel.id);
+                      return (
+                        <button
+                          key={channel.id}
+                          onClick={() => toggleChannel(channel.id)}
+                          className={`w-full p-4 rounded-xl border transition-all flex items-center gap-4 ${
+                            isSelected
+                              ? 'bg-purple-500/10 border-purple-500/50'
+                              : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                            <Hash className="text-white" size={20} />
+                          </div>
+                          <div className="flex-1 text-left min-w-0">
+                            <h4 className="font-bold text-white text-sm truncate">
+                              {channel.channelTitle}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              {channel.channelUsername && (
+                                <span className="text-xs text-slate-400">
+                                  @{channel.channelUsername}
+                                </span>
+                              )}
+                              <span className="text-xs text-slate-500">•</span>
+                              <span className="text-xs text-slate-400 flex items-center gap-1">
+                                <Users size={10} />
+                                {channel.subscribersCount.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                            isSelected ? 'bg-purple-500 border-purple-500' : 'border-slate-600'
+                          }`}>
+                            {isSelected && <Check size={14} className="text-white" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <p className="text-xs text-slate-500 text-center mt-4">
+                    Заказ всегда публикуется в основном канале. Дополнительные каналы — по выбору.
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>

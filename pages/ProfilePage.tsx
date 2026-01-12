@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getTelegramUser, triggerHaptic, openTelegramChat } from '../services/telegram';
 import { api } from '../services/supabase';
-import { FreelancerProfile, Job, JobStatus, Service, ServiceStatus, ServiceCategory } from '../types';
+import { FreelancerProfile, Job, JobStatus, Service, ServiceStatus, ServiceCategory, Channel } from '../types';
 import ProposalsList from '../components/ProposalsList';
 import ConfirmSheet from '../components/ConfirmSheet';
 import { 
   X, Plus, Trash2, Eye, EyeOff, Link as LinkIcon, AlertTriangle, CheckCircle, 
-  Bell, MessageSquare, ChevronRight, Package, Edit3, Clock, Loader2, Gift, Share2, Copy, ArrowUp
+  Bell, MessageSquare, ChevronRight, Package, Edit3, Clock, Loader2, Gift, Share2, Copy, ArrowUp,
+  Radio, Users, Hash, Settings
 } from 'lucide-react';
 
 interface ProfilePageProps {
@@ -25,6 +26,10 @@ interface ProfilePageProps {
   onShareReferral?: () => void;
   onBoostService?: (serviceId: string) => void;
   availableReferralBonuses?: number;
+  // Channels
+  myChannels?: Channel[];
+  onConnectChannel?: () => void;
+  onOpenChannel?: (channel: Channel) => void;
 }
 
 // Категории для отображения
@@ -52,7 +57,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   referralBalance = 0,
   onShareReferral,
   onBoostService,
-  availableReferralBonuses = 0
+  availableReferralBonuses = 0,
+  myChannels = [],
+  onConnectChannel,
+  onOpenChannel
 }) => {
   const user = getTelegramUser();
   const [activeTab, setActiveTab] = useState<'profile' | 'jobs' | 'services'>('profile');
@@ -342,6 +350,62 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             </div>
           </div>
         )}
+
+        {/* Channels Section */}
+        <div className="mb-6 bg-slate-800/60 border border-slate-700 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-white font-bold">
+              <Radio size={18} className="text-purple-400" />
+              Мои каналы
+            </div>
+            {onConnectChannel && (
+              <button
+                onClick={onConnectChannel}
+                className="flex items-center gap-1 px-3 py-1.5 bg-purple-500/20 text-purple-400 text-xs font-bold rounded-lg hover:bg-purple-500/30 transition-all"
+              >
+                <Plus size={14} />
+                Подключить
+              </button>
+            )}
+          </div>
+          
+          {myChannels.length === 0 ? (
+            <div className="text-center py-4">
+              <Radio size={28} className="text-slate-600 mx-auto mb-2" />
+              <p className="text-sm text-slate-400">Нет подключённых каналов</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Подключите свой Telegram-канал для автопубликации заказов
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {myChannels.map(channel => (
+                <button
+                  key={channel.id}
+                  onClick={() => onOpenChannel?.(channel)}
+                  className="w-full flex items-center gap-3 p-3 bg-slate-900/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-all text-left"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                    <Hash className="text-white" size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-white text-sm truncate">{channel.channelTitle}</h4>
+                    <div className="flex items-center gap-2">
+                      {channel.channelUsername && (
+                        <span className="text-xs text-slate-400">@{channel.channelUsername}</span>
+                      )}
+                      <span className="text-xs text-slate-500 flex items-center gap-1">
+                        <Users size={10} />
+                        {channel.subscribersCount.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-500" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Tabs */}
         <div className="flex p-1 bg-slate-800 rounded-xl mb-6">

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Job, FreelancerProfile, User, JobCategory, JobStatus, Proposal, Service, ServiceRequest, ServiceCategory, ServiceRequestStatus, ServiceStatus, AppNotification, NotificationType } from '../types';
+import { Job, FreelancerProfile, User, JobCategory, JobStatus, Proposal, Service, ServiceRequest, ServiceCategory, ServiceRequestStatus, ServiceStatus, AppNotification, NotificationType, Channel, ChannelJob, ChannelJobStatus } from '../types';
 import { MOCK_JOBS, MOCK_FREELANCERS } from '../constants';
 
 const SUPABASE_URL = 'https://rufmwhuronrmcooozack.supabase.co';
@@ -1458,6 +1458,416 @@ export const api = {
       return { success: true, usersCount: users.length };
     } catch (e: any) {
       return { success: false, error: `Exception: ${e?.message || e}` };
+    }
+  },
+
+  // ==========================================
+  // CHANNELS API (Партнёрские каналы)
+  // ==========================================
+
+  /**
+   * Создать новый канал
+   */
+  async createChannel(channel: {
+    channelId: number;
+    channelUsername?: string;
+    channelTitle: string;
+    ownerId: number;
+    categories?: JobCategory[];
+    minBudget?: number;
+    subscribersCount?: number;
+  }): Promise<Channel | null> {
+    try {
+      const { data, error } = await supabase
+        .from('channels')
+        .insert({
+          channel_id: channel.channelId,
+          channel_username: channel.channelUsername || null,
+          channel_title: channel.channelTitle,
+          owner_id: channel.ownerId,
+          categories: channel.categories || [],
+          min_budget: channel.minBudget || 0,
+          subscribers_count: channel.subscribersCount || 0,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.code === '23505') {
+          console.warn('Channel already exists');
+          return null;
+        }
+        console.error('Error creating channel:', error);
+        return null;
+      }
+
+      return {
+        id: data.id.toString(),
+        channelId: data.channel_id,
+        channelUsername: data.channel_username,
+        channelTitle: data.channel_title,
+        ownerId: data.owner_id,
+        categories: data.categories || [],
+        minBudget: data.min_budget || 0,
+        isActive: data.is_active,
+        subscribersCount: data.subscribers_count || 0,
+        createdAt: data.created_at
+      };
+    } catch (e) {
+      console.error('Exception creating channel:', e);
+      return null;
+    }
+  },
+
+  /**
+   * Получить каналы пользователя
+   */
+  async getMyChannels(ownerId: number): Promise<Channel[]> {
+    try {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('owner_id', ownerId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (isTableMissing(error)) return [];
+        console.error('Error fetching my channels:', error);
+        return [];
+      }
+
+      return (data || []).map((record: any) => ({
+        id: record.id.toString(),
+        channelId: record.channel_id,
+        channelUsername: record.channel_username,
+        channelTitle: record.channel_title,
+        ownerId: record.owner_id,
+        categories: record.categories || [],
+        minBudget: record.min_budget || 0,
+        isActive: record.is_active,
+        subscribersCount: record.subscribers_count || 0,
+        createdAt: record.created_at,
+        updatedAt: record.updated_at
+      }));
+    } catch (e) {
+      console.error('Exception:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Получить канал по ID
+   */
+  async getChannel(channelId: string): Promise<Channel | null> {
+    try {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('id', channelId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching channel:', error);
+        return null;
+      }
+
+      return {
+        id: data.id.toString(),
+        channelId: data.channel_id,
+        channelUsername: data.channel_username,
+        channelTitle: data.channel_title,
+        ownerId: data.owner_id,
+        categories: data.categories || [],
+        minBudget: data.min_budget || 0,
+        isActive: data.is_active,
+        subscribersCount: data.subscribers_count || 0,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
+    } catch (e) {
+      console.error('Exception:', e);
+      return null;
+    }
+  },
+
+  /**
+   * Обновить канал
+   */
+  async updateChannel(channelId: string, updates: Partial<{
+    categories: JobCategory[];
+    minBudget: number;
+    isActive: boolean;
+    subscribersCount: number;
+    channelTitle: string;
+  }>): Promise<boolean> {
+    try {
+      const updateData: any = { updated_at: new Date().toISOString() };
+      if (updates.categories !== undefined) updateData.categories = updates.categories;
+      if (updates.minBudget !== undefined) updateData.min_budget = updates.minBudget;
+      if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+      if (updates.subscribersCount !== undefined) updateData.subscribers_count = updates.subscribersCount;
+      if (updates.channelTitle !== undefined) updateData.channel_title = updates.channelTitle;
+
+      const { error } = await supabase
+        .from('channels')
+        .update(updateData)
+        .eq('id', channelId);
+
+      if (error) {
+        console.error('Error updating channel:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Удалить канал
+   */
+  async deleteChannel(channelId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase
+        .from('channels')
+        .delete()
+        .eq('id', channelId);
+
+      if (error) {
+        console.error('Error deleting channel:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Получить все активные каналы (для выбора при создании заказа)
+   */
+  async getAvailableChannels(jobCategory?: JobCategory, jobBudget?: number): Promise<Channel[]> {
+    try {
+      let query = supabase
+        .from('channels')
+        .select('*')
+        .eq('is_active', true)
+        .order('subscribers_count', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        if (isTableMissing(error)) return [];
+        console.error('Error fetching available channels:', error);
+        return [];
+      }
+
+      // Фильтрация на клиенте (категории и бюджет)
+      let channels = (data || []).map((record: any) => ({
+        id: record.id.toString(),
+        channelId: record.channel_id,
+        channelUsername: record.channel_username,
+        channelTitle: record.channel_title,
+        ownerId: record.owner_id,
+        categories: record.categories || [],
+        minBudget: record.min_budget || 0,
+        isActive: record.is_active,
+        subscribersCount: record.subscribers_count || 0,
+        createdAt: record.created_at
+      }));
+
+      // Фильтр по категории
+      if (jobCategory && jobCategory !== JobCategory.ALL) {
+        channels = channels.filter(ch => 
+          ch.categories.length === 0 || ch.categories.includes(jobCategory)
+        );
+      }
+
+      // Фильтр по бюджету
+      if (jobBudget !== undefined && jobBudget > 0) {
+        channels = channels.filter(ch => ch.minBudget <= jobBudget);
+      }
+
+      return channels;
+    } catch (e) {
+      console.error('Exception:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Связать заказ с каналами для публикации
+   */
+  async publishJobToChannels(jobId: string, channelIds: string[]): Promise<boolean> {
+    try {
+      const inserts = channelIds.map(channelId => ({
+        job_id: Number(jobId),
+        channel_id: Number(channelId),
+        status: 'pending'
+      }));
+
+      const { error } = await supabase
+        .from('channel_jobs')
+        .insert(inserts);
+
+      if (error) {
+        if (error.code === '23505') {
+          console.warn('Some channel_jobs already exist');
+          return true;
+        }
+        console.error('Error publishing to channels:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Получить связи заказ-каналы
+   */
+  async getJobChannels(jobId: string): Promise<ChannelJob[]> {
+    try {
+      const { data, error } = await supabase
+        .from('channel_jobs')
+        .select('*, channels(*)')
+        .eq('job_id', jobId);
+
+      if (error) {
+        if (isTableMissing(error)) return [];
+        console.error('Error fetching job channels:', error);
+        return [];
+      }
+
+      return (data || []).map((record: any) => ({
+        id: record.id.toString(),
+        jobId: record.job_id.toString(),
+        channelId: record.channel_id.toString(),
+        telegramMessageId: record.telegram_message_id,
+        status: record.status as ChannelJobStatus,
+        publishedAt: record.published_at,
+        createdAt: record.created_at,
+        channel: record.channels ? {
+          id: record.channels.id.toString(),
+          channelId: record.channels.channel_id,
+          channelUsername: record.channels.channel_username,
+          channelTitle: record.channels.channel_title,
+          ownerId: record.channels.owner_id,
+          categories: record.channels.categories || [],
+          minBudget: record.channels.min_budget || 0,
+          isActive: record.channels.is_active,
+          subscribersCount: record.channels.subscribers_count || 0,
+          createdAt: record.channels.created_at
+        } : undefined
+      }));
+    } catch (e) {
+      console.error('Exception:', e);
+      return [];
+    }
+  },
+
+  /**
+   * Обновить статус публикации в канале
+   */
+  async updateChannelJobStatus(channelJobId: string, status: ChannelJobStatus, telegramMessageId?: number): Promise<boolean> {
+    try {
+      const updateData: any = { status };
+      if (status === ChannelJobStatus.PUBLISHED) {
+        updateData.published_at = new Date().toISOString();
+      }
+      if (telegramMessageId) {
+        updateData.telegram_message_id = telegramMessageId;
+      }
+
+      const { error } = await supabase
+        .from('channel_jobs')
+        .update(updateData)
+        .eq('id', channelJobId);
+
+      if (error) {
+        console.error('Error updating channel job:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('Exception:', e);
+      return false;
+    }
+  },
+
+  /**
+   * Получить статистику канала
+   */
+  async getChannelStats(channelId: string): Promise<{
+    totalJobs: number;
+    publishedJobs: number;
+    jobsThisWeek: number;
+  }> {
+    try {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+
+      const { data, error } = await supabase
+        .from('channel_jobs')
+        .select('id, status, published_at')
+        .eq('channel_id', channelId);
+
+      if (error) {
+        console.error('Error fetching channel stats:', error);
+        return { totalJobs: 0, publishedJobs: 0, jobsThisWeek: 0 };
+      }
+
+      const totalJobs = data?.length || 0;
+      const publishedJobs = data?.filter(j => j.status === 'published').length || 0;
+      const jobsThisWeek = data?.filter(j => 
+        j.published_at && new Date(j.published_at) >= weekAgo
+      ).length || 0;
+
+      return { totalJobs, publishedJobs, jobsThisWeek };
+    } catch (e) {
+      console.error('Exception:', e);
+      return { totalJobs: 0, publishedJobs: 0, jobsThisWeek: 0 };
+    }
+  },
+
+  /**
+   * Проверить существует ли канал по Telegram ID
+   */
+  async getChannelByTelegramId(telegramChannelId: number): Promise<Channel | null> {
+    try {
+      const { data, error } = await supabase
+        .from('channels')
+        .select('*')
+        .eq('channel_id', telegramChannelId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') return null; // Not found
+        console.error('Error fetching channel by TG ID:', error);
+        return null;
+      }
+
+      return {
+        id: data.id.toString(),
+        channelId: data.channel_id,
+        channelUsername: data.channel_username,
+        channelTitle: data.channel_title,
+        ownerId: data.owner_id,
+        categories: data.categories || [],
+        minBudget: data.min_budget || 0,
+        isActive: data.is_active,
+        subscribersCount: data.subscribers_count || 0,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      };
+    } catch (e) {
+      console.error('Exception:', e);
+      return null;
     }
   }
 };

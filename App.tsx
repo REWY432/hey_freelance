@@ -7,14 +7,16 @@ import CreateJobWizard from './pages/CreateJobWizard';
 import CreateServiceWizard from './pages/CreateServiceWizard';
 import FreelancersPage from './pages/FreelancersPage';
 import ProfilePage from './pages/ProfilePage';
-import AdminPage from './pages/AdminPage'; 
+import AdminPage from './pages/AdminPage';
+import ChannelConnectPage from './pages/ChannelConnectPage';
+import ChannelDashboardPage from './pages/ChannelDashboardPage';
 import Toast, { ToastType } from './components/Toast';
 import OfflineBanner from './components/OfflineBanner';
 import JobDetailModal from './components/JobDetailModal';
 import SuccessAnimation from './components/SuccessAnimation';
 import { useDeepLink } from './hooks/useDeepLink';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
-import { ViewState, Job, Service, FreelancerProfile, JobStatus, ServiceStatus, JobCategory } from './types';
+import { ViewState, Job, Service, FreelancerProfile, JobStatus, ServiceStatus, JobCategory, Channel } from './types';
 import { getTelegramUser, triggerHaptic, buildReferralLink, shareContent } from './services/telegram';
 import { api } from './services/supabase';
 import { Loader2 } from 'lucide-react';
@@ -41,6 +43,10 @@ const App: React.FC = () => {
   const [showOnboarding, setShowOnboarding] = useState(false); // Онбординг для новых пользователей
   const [unreadNotifications, setUnreadNotifications] = useState(0); // Счётчик непрочитанных уведомлений
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false); // Success animation после отклика
+  
+  // Channels
+  const [myChannels, setMyChannels] = useState<Channel[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null); // Для дашборда/редактирования
   
   const deepLink = useDeepLink();
   const isOnline = useOnlineStatus();
@@ -172,6 +178,10 @@ const App: React.FC = () => {
       // Загружаем счётчик непрочитанных уведомлений
       const unreadCount = await api.getUnreadCount(user.id);
       setUnreadNotifications(unreadCount);
+      
+      // Загружаем каналы пользователя
+      const fetchedChannels = await api.getMyChannels(user.id);
+      setMyChannels(fetchedChannels);
 
     } catch (error) {
       console.error("Initialization failed:", error);
@@ -420,6 +430,37 @@ const App: React.FC = () => {
     setShowOnboarding(onboardingCompleted === false);
   }, [onboardingCompleted, onboardingLoading]);
 
+  // Channel Handlers
+  const handleChannelConnected = (channel: Channel) => {
+    setMyChannels(prev => {
+      const exists = prev.find(c => c.id === channel.id);
+      if (exists) {
+        return prev.map(c => c.id === channel.id ? channel : c);
+      }
+      return [channel, ...prev];
+    });
+    setSelectedChannel(null);
+    setView(ViewState.PROFILE);
+    showNotify('Канал подключён!', 'success');
+  };
+
+  const handleChannelDisconnected = (channelId: string) => {
+    setMyChannels(prev => prev.filter(c => c.id !== channelId));
+    setSelectedChannel(null);
+    setView(ViewState.PROFILE);
+    showNotify('Канал отключён');
+  };
+
+  const handleOpenChannelDashboard = (channel: Channel) => {
+    setSelectedChannel(channel);
+    setView(ViewState.CHANNEL_DASHBOARD);
+  };
+
+  const handleEditChannelFilters = (channel: Channel) => {
+    setSelectedChannel(channel);
+    setView(ViewState.CHANNEL_CONNECT);
+  };
+
   // Render Content
   const renderContent = () => {
     return (
@@ -497,6 +538,12 @@ const App: React.FC = () => {
                                 onShareReferral={shareReferral}
                                 onBoostService={handleServiceBoost}
                                 availableReferralBonuses={referralWallet.balance}
+                                myChannels={myChannels}
+                                onConnectChannel={() => {
+                                  setSelectedChannel(null);
+                                  setView(ViewState.CHANNEL_CONNECT);
+                                }}
+                                onOpenChannel={handleOpenChannelDashboard}
                             />
                         );
                     
@@ -510,6 +557,33 @@ const App: React.FC = () => {
   onServiceDeleted={handleServiceDeleted}
   onServiceStatusChange={handleServiceStatusChange}
 />
+                        );
+                    
+                    case ViewState.CHANNEL_CONNECT:
+                        return (
+                          <ChannelConnectPage
+                            existingChannel={selectedChannel || undefined}
+                            onChannelConnected={handleChannelConnected}
+                            onCancel={() => {
+                              setSelectedChannel(null);
+                              setView(ViewState.PROFILE);
+                            }}
+                          />
+                        );
+                    
+                    case ViewState.CHANNEL_DASHBOARD:
+                        return selectedChannel ? (
+                          <ChannelDashboardPage
+                            channel={selectedChannel}
+                            onEditFilters={handleEditChannelFilters}
+                            onDisconnect={handleChannelDisconnected}
+                            onBack={() => {
+                              setSelectedChannel(null);
+                              setView(ViewState.PROFILE);
+                            }}
+                          />
+                        ) : (
+                          <JobsPage jobs={jobs} />
                         );
                     
                     default:
