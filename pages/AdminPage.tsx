@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Job, JobStatus, Service, ServiceStatus } from '../types';
+import { Job, JobStatus, Service, ServiceStatus, Channel } from '../types';
 import { api } from '../services/supabase';
 import { triggerHaptic } from '../services/telegram';
 import { 
   Trash2, ShieldAlert, User, Clock, Check, AlertTriangle, Hash, FileCode,
   Package, TrendingUp, Users, Briefcase, DollarSign, Activity,
   BarChart3, PieChart, ArrowUp, RefreshCw, MessageSquare, X, Loader2,
-  Megaphone, Send, ChevronRight
+  Megaphone, Send, ChevronRight, Radio
 } from 'lucide-react';
 import DeveloperDocs from './DeveloperDocs';
 import ConfirmSheet from '../components/ConfirmSheet';
@@ -148,6 +148,13 @@ const AdminPage: React.FC<AdminPageProps> = ({
   // Split View State
   const [selectedItem, setSelectedItem] = useState<{ type: 'job' | 'service'; item: Job | Service } | null>(null);
 
+  // Channel Selection for Job Approval
+  const [showChannelSelector, setShowChannelSelector] = useState(false);
+  const [channelSelectorJobId, setChannelSelectorJobId] = useState<string | null>(null);
+  const [availableChannels, setAvailableChannels] = useState<Channel[]>([]);
+  const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+
   // Load Analytics
   useEffect(() => {
     if (activeTab === 'dashboard') {
@@ -271,16 +278,44 @@ const AdminPage: React.FC<AdminPageProps> = ({
     setConfirmAction(null);
   };
 
+  // Open channel selector before approving job
   const handleApproveJob = async (jobId: string) => {
-    setApprovingId(jobId);
-    setAnimatingApprove(jobId);
+    setChannelSelectorJobId(jobId);
+    setSelectedChannelIds([]);
+    setChannelsLoading(true);
+    setShowChannelSelector(true);
     triggerHaptic('medium');
+    
     try {
-      const success = await api.updateJobStatus(jobId, JobStatus.OPEN);
+      const channels = await api.getAvailableChannels();
+      setAvailableChannels(channels);
+    } catch (e) {
+      console.error('Failed to load channels:', e);
+      setAvailableChannels([]);
+    } finally {
+      setChannelsLoading(false);
+    }
+  };
+
+  // Actually approve job with selected channels
+  const confirmApproveJob = async () => {
+    if (!channelSelectorJobId) return;
+    
+    setApprovingId(channelSelectorJobId);
+    setAnimatingApprove(channelSelectorJobId);
+    
+    try {
+      // Create channel_jobs records first
+      if (selectedChannelIds.length > 0) {
+        await api.publishJobToChannels(channelSelectorJobId, selectedChannelIds);
+      }
+      
+      // Then approve the job (this triggers the Edge Function to publish)
+      const success = await api.updateJobStatus(channelSelectorJobId, JobStatus.OPEN);
       if (success) {
         triggerHaptic('success');
         setTimeout(() => {
-          onJobStatusChange(jobId, JobStatus.OPEN);
+          onJobStatusChange(channelSelectorJobId, JobStatus.OPEN);
           setAnimatingApprove(null);
         }, 400);
       }
@@ -289,7 +324,19 @@ const AdminPage: React.FC<AdminPageProps> = ({
       setAnimatingApprove(null);
     } finally {
       setApprovingId(null);
+      setShowChannelSelector(false);
+      setChannelSelectorJobId(null);
+      setSelectedChannelIds([]);
     }
+  };
+
+  const toggleChannelSelection = (channelId: string) => {
+    triggerHaptic('selection');
+    setSelectedChannelIds(prev => 
+      prev.includes(channelId) 
+        ? prev.filter(id => id !== channelId)
+        : [...prev, channelId]
+    );
   };
 
   // Открыть модалку для отложенной публикации
@@ -1452,6 +1499,109 @@ const AdminPage: React.FC<AdminPageProps> = ({
               >
                 <Trash2 size={18} />
                 Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Channel Selector Modal */}
+      {showChannelSelector && (
+        <div className="fixed inset-0 z-[60] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-800 w-full max-w-md rounded-2xl border border-slate-700 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <Radio className="text-purple-400" size={20} />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-white">Выбор каналов</h2>
+                    <p className="text-xs text-slate-400">Куда опубликовать заказ</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowChannelSelector(false);
+                    setChannelSelectorJobId(null);
+                  }}
+                  className="p-2 text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 max-h-80 overflow-y-auto">
+              {channelsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="animate-spin text-purple-400" size={32} />
+                </div>
+              ) : availableChannels.length === 0 ? (
+                <div className="text-center py-8">
+                  <Radio size={32} className="text-slate-600 mx-auto mb-3" />
+                  <p className="text-slate-400 text-sm">Нет подключённых каналов</p>
+                  <p className="text-xs text-slate-500 mt-1">Заказ будет опубликован только в основном канале</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {availableChannels.map(channel => {
+                    const isSelected = selectedChannelIds.includes(channel.id);
+                    return (
+                      <button
+                        key={channel.id}
+                        onClick={() => toggleChannelSelection(channel.id)}
+                        className={`w-full p-3 rounded-xl border transition-all flex items-center gap-3 ${
+                          isSelected 
+                            ? 'bg-purple-500/20 border-purple-500' 
+                            : 'bg-slate-700/50 border-slate-600 hover:border-slate-500'
+                        }`}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+                          <Hash className="text-white" size={16} />
+                        </div>
+                        <div className="flex-1 text-left min-w-0">
+                          <h4 className="font-medium text-white text-sm truncate">{channel.channelTitle}</h4>
+                          <div className="flex items-center gap-2 text-xs text-slate-400">
+                            {channel.channelUsername && <span>@{channel.channelUsername}</span>}
+                            <span className="flex items-center gap-1">
+                              <Users size={10} />
+                              {channel.subscribersCount.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                          isSelected ? 'bg-purple-500 border-purple-500' : 'border-slate-500'
+                        }`}>
+                          {isSelected && <Check size={12} className="text-white" />}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-slate-700 bg-slate-800/50">
+              {selectedChannelIds.length > 0 && (
+                <p className="text-xs text-emerald-400 mb-3 text-center">
+                  Выбрано каналов: {selectedChannelIds.length} • Охват: ~{
+                    availableChannels
+                      .filter(ch => selectedChannelIds.includes(ch.id))
+                      .reduce((sum, ch) => sum + ch.subscribersCount, 0)
+                      .toLocaleString()
+                  } чел.
+                </p>
+              )}
+              <button
+                onClick={confirmApproveJob}
+                disabled={!!approvingId}
+                className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-[0.98] disabled:opacity-50"
+              >
+                <Check size={18} />
+                {approvingId ? 'Публикация...' : selectedChannelIds.length > 0 
+                  ? `Одобрить и опубликовать (${selectedChannelIds.length + 1})` 
+                  : 'Одобрить (только основной канал)'}
               </button>
             </div>
           </div>
