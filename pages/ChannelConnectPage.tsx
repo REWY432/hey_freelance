@@ -38,6 +38,7 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
   
   // Form Data
   const [channelUsername, setChannelUsername] = useState(existingChannel?.channelUsername || '');
+  const [channelIdInput, setChannelIdInput] = useState(existingChannel?.channelId?.toString() || ''); // Numeric ID
   const [verifiedChannel, setVerifiedChannel] = useState<{
     id: number;
     title: string;
@@ -126,10 +127,11 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
       case 1:
         return true;
       case 2:
-        return channelUsername.length >= 3;
+        // Нужен username и ID канала
+        return channelUsername.length >= 3 && channelIdInput.length >= 5;
       case 3:
-        // На шаге 3 кнопка активна если есть username для проверки
-        return channelUsername.length >= 3;
+        // На шаге 3 кнопка активна если есть данные для проверки
+        return channelUsername.length >= 3 && channelIdInput.length >= 5;
       case 4:
         return true; // Filters are optional
       default:
@@ -169,9 +171,9 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
     }
   };
 
-  // Verify Channel (mock for now - in production this would call a backend)
+  // Verify Channel
   const verifyChannel = async () => {
-    if (!channelUsername) return;
+    if (!channelUsername || !channelIdInput) return;
     
     setIsVerifying(true);
     setError(null);
@@ -189,21 +191,29 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
         username = username.replace('t.me/', '');
       }
 
+      // Parse channel ID
+      const channelId = parseInt(channelIdInput, 10);
+      if (isNaN(channelId)) {
+        throw new Error('Неверный формат ID канала');
+      }
+
       // Check if channel already exists in DB
-      // For now, we'll simulate verification since we can't call Telegram API from client
-      // In production, this would be an Edge Function that calls Telegram Bot API
+      const existing = await api.getChannelByTelegramId(channelId);
+      if (existing && existing.ownerId !== user.id) {
+        throw new Error('Этот канал уже подключён другим пользователем');
+      }
       
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
+      // TODO: В продакшене здесь нужно вызвать Edge Function
+      // чтобы проверить что бот добавлен админом в канал
+      // Для теста пропускаем эту проверку
       
-      // Mock successful verification
-      // In production: const result = await api.verifyChannelBot(username);
-      const mockChannelId = Math.floor(Math.random() * -1000000000); // Telegram channel IDs are negative
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
       
       setVerifiedChannel({
-        id: mockChannelId,
-        title: `@${username}`, // In production this would come from Telegram API
+        id: channelId,
+        title: `@${username}`,
         username: username,
-        subscribersCount: Math.floor(Math.random() * 50000) + 1000 // Mock
+        subscribersCount: 0 // Will be updated later
       });
       
       setChannelUsername(username);
@@ -431,7 +441,7 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
             </div>
           )}
 
-          {/* Step 2: Enter Username */}
+          {/* Step 2: Enter Username and ID */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="bg-blue-500/10 border border-blue-500/20 rounded-2xl p-4 mb-6">
@@ -440,8 +450,8 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
                     <AtSign className="text-blue-400" size={20} />
                   </div>
                   <div>
-                    <h2 className="font-bold text-white">Введите @username канала</h2>
-                    <p className="text-xs text-slate-400">Или вставьте ссылку t.me/...</p>
+                    <h2 className="font-bold text-white">Данные канала</h2>
+                    <p className="text-xs text-slate-400">Username и ID канала</p>
                   </div>
                 </div>
               </div>
@@ -463,8 +473,23 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
                     }}
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>ID канала (число)</label>
+                <input
+                  type="text"
+                  placeholder="-1001234567890"
+                  className={inputClass}
+                  value={channelIdInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9-]/g, '');
+                    setChannelIdInput(val);
+                    setError(null);
+                  }}
+                />
                 <p className="text-xs text-slate-500 mt-2 ml-1">
-                  Например: @design_jobs или t.me/design_jobs
+                  Перешлите любое сообщение из канала боту @userinfobot — он покажет ID
                 </p>
               </div>
             </div>
