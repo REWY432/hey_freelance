@@ -128,17 +128,26 @@ const ChannelConnectPage: React.FC<ChannelConnectPageProps> = ({
       case 2:
         return channelUsername.length >= 3;
       case 3:
-        return verifiedChannel !== null;
+        // На шаге 3 кнопка активна если есть username для проверки
+        return channelUsername.length >= 3;
       case 4:
         return true; // Filters are optional
       default:
         return false;
     }
   };
+  
+  // Можно ли перейти на следующий шаг
+  const canProceedToNextStep = (): boolean => {
+    if (currentStep === 3) {
+      return verifiedChannel !== null; // Нужна верификация чтобы идти дальше
+    }
+    return validateCurrentStep();
+  };
 
   // Navigation
   const goToNextStep = () => {
-    if (!validateCurrentStep()) {
+    if (!canProceedToNextStep()) {
       triggerHaptic('error');
       return;
     }
