@@ -1651,6 +1651,8 @@ export const api = {
    */
   async getAvailableChannels(jobCategory?: JobCategory, jobBudget?: number): Promise<Channel[]> {
     try {
+      console.log('🔍 getAvailableChannels called with:', { jobCategory, jobBudget });
+      
       let query = supabase
         .from('channels')
         .select('*')
@@ -1659,13 +1661,15 @@ export const api = {
 
       const { data, error } = await query;
 
+      console.log('📦 Raw channels from DB:', data);
+
       if (error) {
         if (isTableMissing(error)) return [];
         console.error('Error fetching available channels:', error);
         return [];
       }
 
-      // Фильтрация на клиенте (категории и бюджет)
+      // Возвращаем ВСЕ активные каналы без фильтрации
       let channels = (data || []).map((record: any) => ({
         id: record.id.toString(),
         channelId: record.channel_id,
@@ -1679,9 +1683,14 @@ export const api = {
         createdAt: record.created_at
       }));
 
+      console.log('✅ Returning channels:', channels.length);
+      
+      // Временно отключаем фильтры для отладки
+      // TODO: вернуть фильтрацию после отладки
+      /*
       // Фильтр по категории
       if (jobCategory && jobCategory !== JobCategory.ALL) {
-        channels = channels.filter(ch => 
+        channels = channels.filter(ch =>
           ch.categories.length === 0 || ch.categories.includes(jobCategory)
         );
       }
@@ -1690,6 +1699,7 @@ export const api = {
       if (jobBudget !== undefined && jobBudget > 0) {
         channels = channels.filter(ch => ch.minBudget <= jobBudget);
       }
+      */
 
       return channels;
     } catch (e) {
@@ -1703,27 +1713,41 @@ export const api = {
    */
   async publishJobToChannels(jobId: string, channelIds: string[]): Promise<boolean> {
     try {
+      console.log('🚀 publishJobToChannels called:', { jobId, channelIds });
+      
+      if (!channelIds || channelIds.length === 0) {
+        console.log('⚠️ No channels to publish to');
+        return true;
+      }
+      
       const inserts = channelIds.map(channelId => ({
         job_id: Number(jobId),
         channel_id: Number(channelId),
         status: 'pending'
       }));
 
-      const { error } = await supabase
+      console.log('📝 Inserting channel_jobs:', inserts);
+
+      const { data, error } = await supabase
         .from('channel_jobs')
-        .insert(inserts);
+        .insert(inserts)
+        .select();
+
+      console.log('📦 Insert result:', { data, error });
 
       if (error) {
         if (error.code === '23505') {
           console.warn('Some channel_jobs already exist');
           return true;
         }
-        console.error('Error publishing to channels:', error);
+        console.error('❌ Error publishing to channels:', error);
         return false;
       }
+      
+      console.log('✅ Successfully created channel_jobs');
       return true;
     } catch (e) {
-      console.error('Exception:', e);
+      console.error('💥 Exception:', e);
       return false;
     }
   },
