@@ -55,6 +55,20 @@ interface CategoryStat {
   percentage: number;
 }
 
+interface TopUser {
+  id: number;
+  name: string;
+  username?: string;
+  proposals_count?: number;
+  jobs_count?: number;
+}
+
+interface ActivityItem {
+  type: 'job' | 'service' | 'proposal' | 'user';
+  title: string;
+  created_at: string;
+}
+
 // ============================================
 // CATEGORY CONFIG
 // ============================================
@@ -101,9 +115,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [dailyStats, setDailyStats] = useState<DailyStat[]>([]);
   const [categoryStats, setCategoryStats] = useState<CategoryStat[]>([]);
-  const [topFreelancers, setTopFreelancers] = useState<any[]>([]);
-  const [topClients, setTopClients] = useState<any[]>([]);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [topFreelancers, setTopFreelancers] = useState<TopUser[]>([]);
+  const [topClients, setTopClients] = useState<TopUser[]>([]);
+  const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [trafficSources, setTrafficSources] = useState<{
     total: number;
     direct: number;
@@ -155,14 +169,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
   const [selectedChannelIds, setSelectedChannelIds] = useState<string[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
 
-  // Load Analytics
-  useEffect(() => {
-    if (activeTab === 'dashboard') {
-      loadAnalytics();
-    }
-  }, [activeTab]);
-
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     setIsLoading(true);
     try {
       const [
@@ -198,7 +205,14 @@ const AdminPage: React.FC<AdminPageProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Load Analytics
+  useEffect(() => {
+    if (activeTab === 'dashboard') {
+      loadAnalytics();
+    }
+  }, [activeTab, loadAnalytics]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -357,7 +371,9 @@ const AdminPage: React.FC<AdminPageProps> = ({
     triggerHaptic('medium');
     
     try {
-      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      // Создаём дату с учётом локального часового пояса (Moscow UTC+3)
+      const localDate = new Date(`${scheduleDate}T${scheduleTime}:00`);
+      const scheduledAt = localDate.toISOString();
       const success = await api.approveJobScheduled(schedulingJobId, scheduledAt);
       if (success) {
         triggerHaptic('success');
@@ -911,7 +927,8 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </div>
 
             <div 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 const newSet = new Set(expandedJobs);
                 if (newSet.has(job.id)) {
                   newSet.delete(job.id);
@@ -930,11 +947,11 @@ const AdminPage: React.FC<AdminPageProps> = ({
               )}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2">
+            <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2" onClick={(e) => e.stopPropagation()}>
               {job.status === JobStatus.PENDING && (
                 <>
                   <button
-                    onClick={() => openScheduleModal(job.id)}
+                    onClick={(e) => { e.stopPropagation(); openScheduleModal(job.id); }}
                     disabled={!!approvingId}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 transition-all"
                   >
@@ -942,7 +959,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                     Позже
                   </button>
                   <button
-                    onClick={() => handleApproveJob(job.id)}
+                    onClick={(e) => { e.stopPropagation(); handleApproveJob(job.id); }}
                     disabled={!!approvingId}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
                   >
@@ -952,7 +969,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </>
               )}
               <button
-                onClick={() => handleDeleteJob(job.id, job.title)}
+                onClick={(e) => { e.stopPropagation(); handleDeleteJob(job.id, job.title); }}
                 disabled={deletingId === job.id}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all active:scale-95"
               >
@@ -1053,7 +1070,8 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </div>
 
             <div 
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 const newSet = new Set(expandedServices);
                 if (newSet.has(service.id)) {
                   newSet.delete(service.id);
@@ -1072,11 +1090,11 @@ const AdminPage: React.FC<AdminPageProps> = ({
               )}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2">
+            <div className="flex justify-end pt-2 border-t border-slate-700/50 gap-2" onClick={(e) => e.stopPropagation()}>
               {service.status === ServiceStatus.PENDING && (
                 <>
                   <button
-                    onClick={() => handleApproveService(service.id)}
+                    onClick={(e) => { e.stopPropagation(); handleApproveService(service.id); }}
                     disabled={!!approvingId}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-all"
                   >
@@ -1084,7 +1102,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                     {approvingId === service.id ? '...' : 'Одобрить'}
                   </button>
                   <button
-                    onClick={() => handleRejectService(service.id, service.title)}
+                    onClick={(e) => { e.stopPropagation(); handleRejectService(service.id, service.title); }}
                     disabled={!!approvingId}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 transition-all active:scale-95"
                   >
@@ -1094,7 +1112,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
                 </>
               )}
               <button
-                onClick={() => handleDeleteService(service.id, service.title)}
+                onClick={(e) => { e.stopPropagation(); handleDeleteService(service.id, service.title); }}
                 disabled={deletingId === service.id}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all active:scale-95"
               >
@@ -1440,10 +1458,12 @@ const AdminPage: React.FC<AdminPageProps> = ({
             </div>
 
             {/* Date */}
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <Clock size={12} />
-              Создано: {new Date(selectedItem.item.createdAt).toLocaleString('ru-RU')}
-            </div>
+            {selectedItem.item.createdAt && (
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Clock size={12} />
+                Создано: {new Date(selectedItem.item.createdAt).toLocaleString('ru-RU')}
+              </div>
+            )}
 
             {/* Actions */}
             <div className="pt-4 border-t border-slate-700 space-y-2">
@@ -1595,7 +1615,7 @@ const AdminPage: React.FC<AdminPageProps> = ({
               )}
               <button
                 onClick={confirmApproveJob}
-                disabled={!!approvingId}
+                disabled={!!approvingId || channelsLoading}
                 className="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-emerald-400 transition-all active:scale-[0.98] disabled:opacity-50"
               >
                 <Check size={18} />
